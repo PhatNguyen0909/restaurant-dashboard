@@ -1,37 +1,42 @@
 import React, { useState } from 'react';
 import './Login.css';
-import UserAPI from '../../api/userAPI';
+import userAPI from '../../api/userAPI';
+import { setToken } from '../../utils/tokenUtils';
 
 const Login = ({ onLogin }) => {
   const [restaurantId, setRestaurantId] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  setError("");
 
-  try {
-    // gọi API login
-    const res = await userAPI.login({
-      restaurantId,
-      password,
-    });
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
 
-    if (res?.token) {
-      localStorage.setItem("token", res.token);
-      onLogin?.(restaurantId); // gọi callback nếu có
-    } else {
-      setError("Đăng nhập thất bại!");
+    // Đăng nhập ảo: nếu nhập user là 'demo' và pass là '123', luôn thành công
+    if (restaurantId === 'demo' && password === '123') {
+      setToken('FAKE_TOKEN_DEMO');
+      onLogin?.('demo');
+      setLoading(false);
+      return;
     }
-  } catch (err) {
-    console.error("Login error:", err);
-    setError("Đăng nhập thất bại!");
-  } finally {
-    setLoading(false);
-  }
-};
+
+    try {
+      // gọi API login thật
+      const res = await userAPI.login({ restaurantId, password });
+      if (res?.token) {
+        setToken(res.token);
+        onLogin?.(restaurantId);
+      } else {
+        setError('Đăng nhập thất bại!');
+      }
+    } catch (err) {
+      setError('Đăng nhập thất bại!');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="login-container">
@@ -39,7 +44,7 @@ const handleSubmit = async (e) => {
         <h2>Đăng nhập Nhà Hàng</h2>
         <input
           type="text"
-          placeholder="Mã nhà hàng"
+          placeholder="Email"
           value={restaurantId}
           onChange={e => setRestaurantId(e.target.value)}
         />
@@ -51,6 +56,7 @@ const handleSubmit = async (e) => {
         />
         {error && <div className="login-error">{error}</div>}
         <button type="submit" disabled={loading}>{loading ? 'Đang đăng nhập...' : 'Đăng nhập'}</button>
+        <div style={{fontSize:'0.95em',color:'#888',marginTop:8}}>Tài khoản ảo: demo / 123</div>
       </form>
     </div>
   );
