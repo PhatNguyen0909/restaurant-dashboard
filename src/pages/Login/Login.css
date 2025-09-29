@@ -53,3 +53,22 @@
 .login-form button:hover {
   background: linear-gradient(90deg, #1b7fa9 0%, #1ba94c 100%);
 }
+.register-link {
+  margin-top: 10px;
+  font-size: 0.95rem;
+  color: black;
+  text-align: center;
+  text-decoration: none;
+}
+.register-link:hover {
+  text-decoration: underline;
+  color:#1ba94c;
+}
+.register-prompt{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 12px;
+  font-size: 0.95rem;
+  color: #555;
+}

@@ -20,6 +20,13 @@ const Add = () => {
     },[data])
     const onSubmitHandler = async (event) => {
         event.preventDefault();
+        const formData = new FormData();
+        formData.append('image', image);
+        formData.append('name', data.name);
+        formData.append('description', data.description);
+        formData.append('category', data.category);
+        formData.append('price', data.price);
+        // You can now send formData to your server using fetch or axios
     }
   return (
     <div className='add'>
@@ -49,7 +56,7 @@ const Add = () => {
                 <input onChange = {onChangeHandler} value = {data.price} type="Number" name='price' placeholder='$20' />
             </div>
         </div>
-        <button type="submit" className='add-btn'>ADD</button>
+        <button onClick={onSubmitHandler} type="submit" className='add-btn'>ADD</button>
       </form>
     </div>
   )

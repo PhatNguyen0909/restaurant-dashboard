@@ -4,7 +4,7 @@ import axios from 'axios';
 // Base URL: lấy từ biến môi trường Vite, nếu không có thì dùng URL fallback
 const API_BASE_URL =
   import.meta?.env?.VITE_API_BASE_URL ||
-  'https://traditions-her-sequence-sixth.trycloudflare.com/potato-api';
+  'https://first-reporters-twelve-republic.trycloudflare.com/potato-api';
 
 // Tạo instance axios chung
 export const api = axios.create({
