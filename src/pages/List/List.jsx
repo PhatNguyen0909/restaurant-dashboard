@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import merchantAPI from '../../api/merchantAPI';
 import './List.css';
+import { NavLink } from 'react-router-dom';
 
 function getCookie(name) {
   const value = `; ${document.cookie}`;
@@ -13,6 +14,20 @@ const List = () => {
   const [menu, setMenu] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showMenu, setShowMenu] = useState(false);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    if (!showMenu) return;
+    function handleClick(e) {
+      const fab = document.getElementById('fab-menu-wrapper');
+      if (fab && !fab.contains(e.target)) {
+        setShowMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showMenu]);
 
   useEffect(() => {
     const fetchMenu = async () => {
@@ -67,6 +82,25 @@ const List = () => {
           </tbody>
         </table>
       )}
+      {/* Floating Add Button with Hover Menu - wrapper ensures menu stays open when moving between button and menu */}
+      <div
+        id="fab-menu-wrapper"
+        style={{ position: 'fixed', zIndex: 120, right: 24, bottom: 24 }}
+      >
+        <div
+          className='btn-add-option'
+          style={{ zIndex: 121 }}
+          onClick={() => setShowMenu((v) => !v)}
+        >
+          +
+        </div>
+        {showMenu && (
+          <div className='add-fab-menu' style={{ zIndex: 120, pointerEvents: 'auto' }}>
+            <NavLink className='add-fab-menu-item' to='/add'>Thêm món ăn</NavLink>
+            <NavLink className='add-fab-menu-item' to='/add-option-group'>Thêm option group</NavLink>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -12,6 +12,7 @@
   gap: 24px;
 }
 
+
 .add-img-upload {
   align-items: center;
   gap: 8px;
@@ -94,6 +95,8 @@
   font-weight: 500;
   color: #222;
 }
+
+
 @media (max-width: 900px) {
   .add {
     max-width: 98vw;
@@ -103,4 +106,5 @@
     flex-direction: column;
     gap: 12px;
   }
+ 
 }
