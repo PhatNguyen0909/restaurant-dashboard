@@ -4,11 +4,7 @@ import merchantAPI from '../../api/merchantAPI';
 import './List.css';
 import { NavLink } from 'react-router-dom';
 
-function getCookie(name) {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop().split(';').shift();
-}
+
 
 const List = () => {
   const [menu, setMenu] = useState([]);
@@ -34,16 +30,10 @@ const List = () => {
       setLoading(true);
       setError('');
       try {
-        const restaurantId = getCookie('restaurantId');
-        if (!restaurantId) {
-          setError('Không tìm thấy id nhà hàng.');
-          setLoading(false);
-          return;
-        }
-        const data = await merchantAPI.getMenuByRestaurant(restaurantId);
-        // Sắp xếp theo category (tăng dần)
-        const sorted = [...(data || [])].sort((a, b) => (a.category > b.category ? 1 : -1));
-        setMenu(sorted);
+        // Chỉ thêm log kiểm tra dữ liệu trả về từ API getMyMerchant
+        const merchant = await merchantAPI.getMyMerchant();
+        console.log('DEBUG getMyMerchant:', merchant);
+        // ...existing logic lấy menu nếu cần...
       } catch (e) {
         setError('Không lấy được thực đơn.');
       } finally {
