@@ -1,10 +1,21 @@
 import React, { useState } from 'react';
 import './Login.css';
+
 import userAPI from '../../api/userAPI';
-import { setToken } from '../../utils/tokenUtils';
+import { setToken, removeToken } from '../../utils/tokenUtils';
+import { NavLink } from 'react-router-dom';
+// Hàm xóa cookie
+function deleteCookie(name) {
+  document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+}
+
+function setCookie(name, value, days = 7) {
+  const expires = new Date(Date.now() + days * 864e5).toUTCString();
+  document.cookie = name + '=' + encodeURIComponent(value) + '; expires=' + expires + '; path=/';
+}
 
 const Login = ({ onLogin }) => {
-  const [restaurantId, setRestaurantId] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -15,8 +26,11 @@ const Login = ({ onLogin }) => {
     setError("");
 
     // Đăng nhập ảo: nếu nhập user là 'demo' và pass là '123', luôn thành công
-    if (restaurantId === 'demo' && password === '123') {
+    if (email === 'demo' && password === '123') {
       setToken('FAKE_TOKEN_DEMO');
+      setCookie('MerchantId', 'demo');
+      setCookie('user', JSON.stringify({ email: 'demo' }));
+      // Demo luôn active
       onLogin?.('demo');
       setLoading(false);
       return;
@@ -24,10 +38,12 @@ const Login = ({ onLogin }) => {
 
     try {
       // gọi API login thật
-      const res = await userAPI.login({ restaurantId, password });
+      const res = await userAPI.login({ email, password });
       if (res?.token) {
         setToken(res.token);
-        onLogin?.(restaurantId);
+        if (res.MerchantId) setCookie('MerchantId', res.MerchantId);
+        if (res.user) setCookie('user', JSON.stringify(res.user));
+        onLogin?.(res.MerchantId || email);
       } else {
         setError('Đăng nhập thất bại!');
       }
@@ -45,8 +61,8 @@ const Login = ({ onLogin }) => {
         <input
           type="text"
           placeholder="Email"
-          value={restaurantId}
-          onChange={e => setRestaurantId(e.target.value)}
+          value={email}
+          onChange={e => setEmail(e.target.value)}
         />
         <input
           type="password"
@@ -56,8 +72,14 @@ const Login = ({ onLogin }) => {
         />
         {error && <div className="login-error">{error}</div>}
         <button type="submit" disabled={loading}>{loading ? 'Đang đăng nhập...' : 'Đăng nhập'}</button>
-        <div style={{fontSize:'0.95em',color:'#888',marginTop:8}}>Tài khoản ảo: demo / 123</div>
+        <div className ='register-prompt'>
+        <p>Bạn Muốn làm đối tác với Potato?</p>
+        <NavLink className="register-link" to="/register">Đăng ký ở đây</NavLink>
+        <p>user test: demo/123</p>
+        </div>
+        
       </form>
+        
     </div>
   );
 };
