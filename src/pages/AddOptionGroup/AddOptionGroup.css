@@ -1,0 +1,14 @@
+.aog-wrap{max-width:900px;margin:24px auto;padding:0 16px}
+.aog-row{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+.aog-hint{font-size:12px;color:#6b7280;margin-bottom:8px}
+.aog-group{border:1px solid #e5e7eb;border-radius:10px;padding:12px;margin:12px 0}
+.aog-group-head{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.aog-opts{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.aog-opt-row{display:flex;gap:8px;align-items:center}
+.aog-opt-label{flex:1}
+.aog-opt-price{width:130px}
+.aog-add{border:1px dashed #9ca3af;background:#f9fafb;border-radius:8px;padding:8px 10px;cursor:pointer}
+.aog-primary{background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer}
+.aog-danger{background:#ef4444;color:#fff;border:none;border-radius:8px;padding:6px 10px;cursor:pointer}
+.aog-actions{display:flex;gap:12px;align-items:center;margin-top:12px}
+.aog-preview{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px;margin-top:16px;overflow:auto}
