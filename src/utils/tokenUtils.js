@@ -2,16 +2,20 @@
 
 const TOKEN_KEY = 'token';
 
-export function setToken(token) {
+export function setToken(token, days = 7) {
   if (token) {
-    localStorage.setItem(TOKEN_KEY, token);
+    const expires = new Date(Date.now() + days * 864e5).toUTCString();
+    document.cookie = `${TOKEN_KEY}=${encodeURIComponent(token)}; expires=${expires}; path=/`;
   }
 }
 
 export function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${TOKEN_KEY}=`);
+  if (parts.length === 2) return parts.pop().split(';').shift();
+  return null;
 }
 
 export function removeToken() {
-  localStorage.removeItem(TOKEN_KEY);
+  document.cookie = `${TOKEN_KEY}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
 }

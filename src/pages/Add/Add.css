@@ -95,8 +95,15 @@
   font-weight: 500;
   color: #222;
 }
+.icon-back{
+  display: flex;
+}
 
+.icon-back p{
 
+margin-top:7px;
+margin-left:5px
+}
 @media (max-width: 900px) {
   .add {
     max-width: 98vw;

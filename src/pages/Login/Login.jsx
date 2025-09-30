@@ -28,7 +28,6 @@ const Login = ({ onLogin }) => {
     // Đăng nhập ảo: nếu nhập user là 'demo' và pass là '123', luôn thành công
     if (email === 'demo' && password === '123') {
       setToken('FAKE_TOKEN_DEMO');
-      setCookie('MerchantId', 'demo');
       setCookie('user', JSON.stringify({ email: 'demo' }));
       // Demo luôn active
       onLogin?.('demo');
@@ -39,11 +38,11 @@ const Login = ({ onLogin }) => {
     try {
       // gọi API login thật
       const res = await userAPI.login({ email, password });
+      console.log('Login response:', res); // DEBUG
       if (res?.token) {
         setToken(res.token);
-        if (res.MerchantId) setCookie('MerchantId', res.MerchantId);
         if (res.user) setCookie('user', JSON.stringify(res.user));
-        onLogin?.(res.MerchantId || email);
+        onLogin?.(email);
       } else {
         setError('Đăng nhập thất bại!');
       }
