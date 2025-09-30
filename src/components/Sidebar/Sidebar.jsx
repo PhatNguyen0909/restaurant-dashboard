@@ -7,6 +7,10 @@ const Sidebar = () => {
     <div className = 'sidebar'>
       <div className='sidebar-options'>
        
+        <NavLink to='/info' className='sidebar-option'>
+          <img src={assets.detail_icon} alt="i" />
+          <p>Merchant Info</p>
+        </NavLink>
         <NavLink to='/list' className='sidebar-option'>
           <img src={assets.order_icon} alt="" />
           <p>List Items</p>

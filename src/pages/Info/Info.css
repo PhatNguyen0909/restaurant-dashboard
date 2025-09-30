@@ -1,0 +1,19 @@
+.info-page { padding: 20px; width: 100%; }
+.card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); max-width: 800px; }
+.card.error { border-color: #fca5a5; color: #b91c1c; }
+.title { margin: 0 0 16px; font-size: 20px; }
+.row { display: grid; grid-template-columns: 160px 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid #f3f4f6; }
+.row:first-of-type { border-top: none; }
+.label { color: #6b7280; font-weight: 500; }
+.value { color: #111827; }
+.value.prewrap { white-space: pre-wrap; }
+.rating { font-weight: 600; }
+.muted { color: #6b7280; font-weight: 400; margin-left: 6px; }
+.hours { display: flex; flex-direction: column; gap: 6px; }
+.hours-row { display: flex; justify-content: space-between; gap: 12px; }
+.day { text-transform: capitalize; color: #374151; min-width: 120px; }
+.hours-value { color: #111827; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { background: #f3f4f6; border: 1px solid #e5e7eb; padding: 6px 10px; border-radius: 999px; font-size: 12px; color: #374151; }
+
+@media (max-width: 640px) { .row { grid-template-columns: 1fr; } .day { min-width: auto; } }
