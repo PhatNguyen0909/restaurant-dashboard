@@ -6,7 +6,8 @@
   transition: background 0.15s;
 }
 .menu-category-toggle:hover {
-  background: white;
+  background: #f8fafc;
+  border-radius: 10px;
 }
 
 .menu-category-icon {
@@ -35,36 +36,48 @@
   pointer-events: none;
 }
 
+/* Responsive grid for food cards */
 .menu-items-row {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(1, minmax(0, 1fr)); /* fallback one column */
   gap: 20px;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
   align-items: stretch;
+}
+@media (min-width: 700px){
+  .menu-items-row{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1000px){
+  .menu-items-row{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 1250px){
+  .menu-items-row{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 .food-card {
   background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.07);
-  width: 220px;
-  min-width: 200px;
-  max-width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   padding: 0 0 14px 0;
-  transition: box-shadow 0.18s, transform 0.18s;
+  transition: box-shadow 0.18s, transform 0.18s, border-color .18s;
   position: relative;
   overflow: hidden;
 }
 .food-card:hover {
-  box-shadow: 0 4px 18px rgba(0,0,0,0.13);
-  transform: translateY(-2px) scale(1.03);
+  border-color: #cbd5e1;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+  transform: translateY(-2px) scale(1.01);
 }
 .food-card-img-wrap {
   width: 100%;
-  height: 120px;
+  height: 140px;
   border-radius: 0;
   overflow: hidden;
   background: #f7f7f7;
@@ -84,7 +97,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
+  gap: 6px;
   padding: 0 14px;
 }
 .food-card-name {
@@ -98,30 +111,36 @@
   font-size: 1em;
 }
 .food-card-desc {
-  font-size: 0.97em;
-  color: #555;
+  font-size: 0.95em;
+  color: #475569;
   margin-bottom: 2px;
-  min-height: 32px;
+  min-height: 34px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .food-card-status {
-  font-size: 0.93em;
-  font-weight: 500;
-  padding: 2px 10px;
-  border-radius: 8px;
-  margin-top: 4px;
+  font-size: 0.92em;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin-top: 6px;
   margin-bottom: 2px;
   display: inline-block;
   cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
 }
 .food-card-status.available {
-  background: #e8f5e9;
-  color: #388e3c;
-  border: 1px solid #b2dfdb;
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
 }
 .food-card-status.unavailable {
-  background: #fff3e0;
-  color: #e65100;
-  border: 1px solid #ffe0b2;
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
 }
 .menu-category-title{
   font-size: 1.3em;
@@ -134,7 +153,6 @@
 .list-grouped-menu{
   display: flex;
   flex-direction: column;
-  
   width: 100%;
 }
 
@@ -146,14 +164,7 @@
   transition: background 1s;
 }
 
-.menu-items-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-  margin-bottom: 24px;
-  align-items: stretch;
-
-}
+/* layout settings for .menu-items-row defined above; extra specificity not needed */
 .menu-category-icon{
   width:25px;
   height: auto;
@@ -164,19 +175,10 @@
   margin-left: 8px;
 }
 @media (max-width: 900px) {
-  .menu-items-row {
-    gap: 10px;
-    flex-direction: column;
-  }
-  .food-card {
-    width: 100%;
-    min-width: 0;
-    max-width: 80%;
-    padding: 0 0 10px 0;
-    margin-left: 35px;
-  }
+  .menu-items-row { gap: 14px; }
+  .food-card { width: 100%; max-width: 100%; padding: 0 0 12px 0; }
   .food-card-img-wrap {
-    height: 90px;
+    height: 110px;
   }
   .list-title-wrapper{
     font-size: 1.5em;
@@ -233,12 +235,15 @@
   margin-bottom: 16px;
 }
 .list-container {
-  padding: 32px;
+  padding: 28px 24px;
+  max-width: 1200px;
+  margin: 0 auto;
 
 }
 .list-title {
-  font-size: 1.5em;
-  margin-bottom: 16px;
+  font-size: 1.6em;
+  margin-bottom: 12px;
+  font-weight: 700;
 
 }
 
@@ -248,7 +253,7 @@
 
 @media (max-width: 900px) {
   .list-container {
-    padding: 4px;
+    padding: 12px;
   }
   .list-title {
     font-size: 1em;
@@ -293,3 +298,4 @@
   justify-content: center;
   transition: background 0.2s, transform 0.2s;
 }
+.btn-add-option:hover{ background: #ff7043; transform: translateY(-1px); }

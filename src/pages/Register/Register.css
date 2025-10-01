@@ -68,3 +68,89 @@
   color: #1976d2;
   text-decoration: underline;
 }
+
+/* Cuisine multi-select dropdown */
+.cuisine-select { position: relative; }
+.cuisine-select .dropdown-toggle {
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  color: #333;
+  border: 1px solid #d0d0d0;
+  border-radius: 5px;
+  padding: 10px 12px;
+  font-size: 1em;
+  cursor: pointer;
+}
+.register-form .cuisine-select .dropdown-toggle,
+.register-form .cuisine-select .dropdown-toggle:hover,
+.register-form .cuisine-select .dropdown-toggle:focus {
+  /* Ghi đè style của .register-form button để không bị nền gradient và chữ trắng */
+  background: #fff;
+  color: #333;
+}
+.register-form .cuisine-select .dropdown-toggle:focus {
+  border-color: #1976d2;
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.15);
+  outline: none;
+}
+.register-form .cuisine-select .dropdown-toggle:disabled {
+  background: #f5f5f5;
+  color: #999;
+  cursor: not-allowed;
+}
+.cuisine-select .dropdown-toggle:after {
+  content: '▾';
+  float: right;
+  color: #888;
+}
+.cuisine-select .dropdown-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 100%;
+  max-height: 220px;
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.12);
+  padding: 6px 0;
+}
+.cuisine-select .dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.cuisine-select .dropdown-item:hover { background: #f5f7fb; }
+
+/* Style checkbox thành radio-like giống hình */
+.cuisine-select .dropdown-item input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #9aa3af;
+  border-radius: 50%;
+  display: inline-block;
+  position: relative;
+}
+.cuisine-select .dropdown-item input[type="checkbox"]:checked {
+  border-color: #1976d2;
+}
+.cuisine-select .dropdown-item input[type="checkbox"]:checked:after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px; height: 8px;
+  background: #1976d2;
+  border-radius: 50%;
+}
+.cuisine-select .dropdown-empty {
+  padding: 10px 12px;
+  color: #666;
+}
