@@ -37,17 +37,22 @@ const Login = ({ onLogin }) => {
 
     try {
       // gọi API login thật
-      const res = await userAPI.login({ email, password });
+      const res = await userAPI.login({ email: email.trim(), password: password.trim() });
       console.log('Login response:', res); // DEBUG
-      if (res?.token) {
-        setToken(res.token);
-        if (res.user) setCookie('user', JSON.stringify(res.user));
-        onLogin?.(email);
+      // Một số backend trả về "tocken" thay vì "token"; thử map linh hoạt
+      const token = res?.token || res?.tocken || res?.accessToken || res?.jwt;
+      if (token) {
+        setToken(token);
+        const userInfo = res?.user || { email: res?.email || email, fullName: res?.fullName };
+        if (userInfo) setCookie('user', JSON.stringify(userInfo));
+        onLogin?.(userInfo?.email || email);
       } else {
         setError('Đăng nhập thất bại!');
       }
     } catch (err) {
-      setError('Đăng nhập thất bại!');
+      // Hiển thị thông báo chi tiết nếu có
+      const msg = err?.response?.data?.message || err?.response?.data?.error || 'Đăng nhập thất bại!';
+      setError(msg);
     } finally {
       setLoading(false);
     }

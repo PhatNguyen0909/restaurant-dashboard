@@ -2,10 +2,26 @@
 import axios from 'axios';
 import { getToken } from '../utils/tokenUtils';
 
-// Base URL: lấy từ biến môi trường Vite, nếu không có thì dùng URL fallback
-const API_BASE_URL =
-  import.meta?.env?.VITE_API_BASE_URL ||
-  'https://database-timothy-employees-dive.trycloudflare.com/potato-api';
+// Base URL
+// - DEV: dùng proxy "/api" của Vite để né CORS
+// - PROD: đọc từ biến môi trường Vite `VITE_API_BASE_URL` (ví dụ: https://domain.tld/potato-api)
+let API_BASE_URL = import.meta?.env?.DEV
+  ? '/api'
+  : (import.meta?.env?.VITE_API_BASE_URL || 'https://cruise-silk-licence-shed.trycloudflare.com/potato-api');
+
+// Fallback: nếu đang chạy ở localhost (kể cả build preview) thì ưu tiên dùng proxy /api
+try {
+  const isLocalhost = typeof window !== 'undefined' && /^(http:\/\/)?localhost:\d+/.test(window.location.origin);
+  if (isLocalhost) {
+    API_BASE_URL = '/api';
+  }
+} catch {}
+
+// Debug: log baseURL một lần để kiểm tra
+if (typeof window !== 'undefined') {
+  // eslint-disable-next-line no-console
+  console.log('[apiClient] baseURL =', API_BASE_URL, 'env.DEV =', import.meta?.env?.DEV);
+}
 
 // Tạo instance axios chung
 export const api = axios.create({
@@ -28,10 +44,15 @@ export const attachToken = (token) => {
 // Always attach token from cookie if available
 api.interceptors.request.use((config) => {
   try {
+    const url = String(config?.url || '');
+    const isPublic = /\/auth\/login|\/merchant\/register|\/auth\/refresh/i.test(url);
     const t = getToken();
-    if (t) {
-      config.headers = config.headers || {};
+    config.headers = config.headers || {};
+    if (!isPublic && t) {
       config.headers['Authorization'] = `Bearer ${t}`;
+    } else {
+      // Đảm bảo không gửi token cho các endpoint public
+      if (config.headers['Authorization']) delete config.headers['Authorization'];
     }
   } catch {}
   return config;
@@ -41,7 +62,10 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.error('API error:', error?.response || error.message);
+    const status = error?.response?.status;
+    const data = error?.response?.data;
+    // eslint-disable-next-line no-console
+    console.error('API error:', { status, data, message: error?.message, url: error?.config?.url });
     return Promise.reject(error);
   }
 );
