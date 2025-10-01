@@ -1,6 +1,4 @@
-
 // tokenUtils.js: Quản lý token cho app
-import { attachToken } from '../api/apiClient';
 
 const TOKEN_KEY = 'token';
 
@@ -20,11 +18,4 @@ export function getToken() {
 
 export function removeToken() {
   document.cookie = `${TOKEN_KEY}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-  attachToken(null);
-}
-
-// Hàm này vừa lưu token vào cookie vừa attach vào axios
-export function setAndAttachToken(token, days = 7) {
-  setToken(token, days);
-  attachToken(token);
 }
