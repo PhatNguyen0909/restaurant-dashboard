@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import './Login.css';
 
 import userAPI from '../../api/userAPI';
-import { setToken, removeToken } from '../../utils/tokenUtils';
+import { setAndAttachToken, removeToken } from '../../utils/tokenUtils';
 import { NavLink } from 'react-router-dom';
 // Hàm xóa cookie
 function deleteCookie(name) {
@@ -27,7 +27,7 @@ const Login = ({ onLogin }) => {
 
     // Đăng nhập ảo: nếu nhập user là 'demo' và pass là '123', luôn thành công
     if (email === 'demo' && password === '123') {
-      setToken('FAKE_TOKEN_DEMO');
+      setAndAttachToken('FAKE_TOKEN_DEMO');
       setCookie('user', JSON.stringify({ email: 'demo' }));
       // Demo luôn active
       onLogin?.('demo');
@@ -40,7 +40,7 @@ const Login = ({ onLogin }) => {
       const res = await userAPI.login({ email, password });
       console.log('Login response:', res); // DEBUG
       if (res?.token) {
-        setToken(res.token);
+        setAndAttachToken(res.token);
         if (res.user) setCookie('user', JSON.stringify(res.user));
         onLogin?.(email);
       } else {
