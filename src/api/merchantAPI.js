@@ -1,6 +1,94 @@
 import apiClient from "./apiClient";
 
 const merchantAPI = {
+  // Tạo menu item mới (multipart/form-data)
+  createMenuItem: async (payload) => {
+    // Chỉ gửi 1 lần đúng endpoint tài liệu để tránh tạo trùng khi server 500 nhưng đã lưu
+    let form;
+    if (payload instanceof FormData) {
+      form = payload;
+    } else {
+      form = new FormData();
+      const name = payload?.name ?? '';
+      const description = payload?.description ?? '';
+      const categoryId = payload?.categoryId ?? payload?.category ?? '';
+      const basePrice = payload?.basePrice ?? payload?.price ?? '';
+      const imgFile = payload?.imgFile ?? payload?.image ?? payload?.file ?? null;
+      if (imgFile) form.append('imgFile', imgFile);
+      if (name) form.append('name', String(name));
+      if (description) form.append('description', String(description));
+      if (categoryId !== undefined && categoryId !== null) form.append('categoryId', String(categoryId));
+      if (basePrice !== undefined && basePrice !== null) form.append('basePrice', String(basePrice));
+    }
+
+    // Thêm header idempotency nếu server hỗ trợ (không gây lỗi nếu bỏ qua)
+    const key = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+    const res = await apiClient.post('/merchant/menu-items', form, {
+      headers: {
+        Accept: 'application/json',
+        'X-Idempotency-Key': key,
+      },
+    });
+    return res?.data?.data ?? res?.data;
+  },
+
+  // Lấy tất cả menu items (để fallback xác nhận sau khi tạo)
+  getMenuItems: async () => {
+    const res = await apiClient.get('/merchant/menu-items');
+    const body = res?.data?.data ?? res?.data;
+    if (Array.isArray(body)) return body;
+    if (Array.isArray(body?.items)) return body.items;
+    return [];
+  },
+  // CATEGORY: CRUD
+  getCategories: async () => {
+    const res = await apiClient.get('/merchant/categories');
+    const body = res?.data?.data ?? res?.data;
+    // Normalize to array
+    if (Array.isArray(body)) return body;
+    if (Array.isArray(body?.items)) return body.items;
+    return [];
+  },
+  createCategory: async (nameOrPayload) => {
+    const name = typeof nameOrPayload === 'string'
+      ? nameOrPayload
+      : (nameOrPayload?.name || nameOrPayload?.categoryName || nameOrPayload?.title || '');
+    const candidates = [
+      { name },
+      { categoryName: name },
+      { title: name },
+    ];
+    let lastErr;
+    for (const body of candidates) {
+      try {
+        const res = await apiClient.post('/merchant/categories', body);
+        return res?.data?.data ?? res?.data;
+      } catch (e) { lastErr = e; }
+    }
+    throw lastErr || new Error('Create category failed');
+  },
+  updateCategory: async (id, nameOrPayload) => {
+    const name = typeof nameOrPayload === 'string'
+      ? nameOrPayload
+      : (nameOrPayload?.name || nameOrPayload?.categoryName || nameOrPayload?.title || '');
+    const candidates = [
+      { name },
+      { categoryName: name },
+      { title: name },
+    ];
+    let lastErr;
+    for (const body of candidates) {
+      try {
+        const res = await apiClient.put(`/merchant/categories/${id}`, body);
+        return res?.data?.data ?? res?.data ?? true;
+      } catch (e) { lastErr = e; }
+    }
+    throw lastErr || new Error('Update category failed');
+  },
+  deleteCategory: async (id) => {
+    const res = await apiClient.delete(`/merchant/categories/${id}`);
+    return res?.data?.data ?? true;
+  },
   // Lấy thông tin nhà hàng hiện tại (dựa vào token)
   getMyMerchant: async () => {
     const res = await apiClient.get('/merchant/my-merchant');

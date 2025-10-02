@@ -66,6 +66,7 @@ import profile_icon from './profile_icon.png'
 import bag_icon from './bag_icon.png'
 import logout_icon from './logout_icon.png'
 import back from './Back.png'
+import category_icon from './category_icon.png'
 export const assets ={
     back,
     add_icon,
@@ -94,7 +95,8 @@ export const assets ={
     bag_icon,
     menu_1,
     up,
-    down
+    down,
+    category_icon
 
 }
 
