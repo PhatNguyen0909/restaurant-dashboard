@@ -9,9 +9,11 @@
 
 html{
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 body{
   min-height: 100vh;
+  overflow-x: hidden;
 }
 a{
   text-decoration: none;
