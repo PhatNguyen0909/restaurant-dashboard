@@ -2,20 +2,9 @@
 import axios from 'axios';
 import { getToken } from '../utils/tokenUtils';
 
-// Base URL
-// - DEV: dùng proxy "/api" của Vite để né CORS
-// - PROD: đọc từ biến môi trường Vite `VITE_API_BASE_URL` (ví dụ: https://domain.tld/potato-api)
-let API_BASE_URL = import.meta?.env?.DEV
-  ? '/api'
-  : (import.meta?.env?.VITE_API_BASE_URL || 'https://cruise-silk-licence-shed.trycloudflare.com/potato-api');
-
-// Fallback: nếu đang chạy ở localhost (kể cả build preview) thì ưu tiên dùng proxy /api
-try {
-  const isLocalhost = typeof window !== 'undefined' && /^(http:\/\/)?localhost:\d+/.test(window.location.origin);
-  if (isLocalhost) {
-    API_BASE_URL = '/api';
-  }
-} catch {}
+// Base URL: luôn ưu tiên biến môi trường, nếu không có thì cố định vào server đã cung cấp
+// Làm vậy để bỏ qua proxy /api của Vite và tránh các vấn đề cookie/CORS qua proxy khi đổi mạng
+const API_BASE_URL = (import.meta?.env?.VITE_API_BASE_URL) || 'https://cruise-silk-licence-shed.trycloudflare.com/potato-api';
 
 // Debug: log baseURL một lần để kiểm tra
 if (typeof window !== 'undefined') {
@@ -28,7 +17,9 @@ export const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
   },
+  withCredentials: false,
   timeout: 15000, // timeout 15s
 });
 

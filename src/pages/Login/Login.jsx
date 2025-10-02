@@ -75,7 +75,7 @@ const Login = ({ onLogin }) => {
           onChange={e => setPassword(e.target.value)}
         />
         {error && <div className="login-error">{error}</div>}
-        <button type="submit" disabled={loading}>{loading ? 'Đang đăng nhập...' : 'Đăng nhập'}</button>
+  <button type="submit" disabled={loading}>{loading ? 'Đang đăng nhập...' : 'Đăng nhập'}</button>
         <div className ='register-prompt'>
         <p>Bạn Muốn làm đối tác với Potato?</p>
         <NavLink className="register-link" to="/register">Đăng ký ở đây</NavLink>

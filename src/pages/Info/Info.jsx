@@ -10,13 +10,25 @@ const Info = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ introduction: '', address: '', openingHours: {}, cuisineTypes: [] });
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
         const res = await merchantAPI.getMyMerchant();
-        if (mounted) setData(res || null);
+        if (mounted) {
+          setData(res || null);
+          const formInit = {
+            introduction: res?.introduction || res?.description || '',
+            address: res?.address || '',
+            openingHours: res?.openingHours || res?.opening_hours || {},
+            cuisineTypes: Array.isArray(res?.cuisineTypes) ? res.cuisineTypes : (Array.isArray(res?.cuisine_types) ? res.cuisine_types : []),
+          };
+          setForm(formInit);
+        }
       } catch (e) {
         if (mounted) setError('Không thể tải thông tin nhà hàng.');
       } finally {
@@ -47,6 +59,60 @@ const Info = () => {
     return Object.values(raw ?? {});
   }, [data]);
 
+  const updateOpeningHour = (day, value) => {
+    setForm(prev => ({ ...prev, openingHours: { ...prev.openingHours, [day]: value } }));
+  };
+  const removeOpeningHour = (day) => {
+    setForm(prev => {
+      const next = { ...prev.openingHours };
+      delete next[day];
+      return { ...prev, openingHours: next };
+    });
+  };
+  const addOpeningHour = () => {
+    const day = prompt('Nhập ngày (ví dụ: monday, tuesday, ...)');
+    if (!day) return;
+    const val = prompt('Giờ mở cửa (ví dụ: 08:00-21:00)') || '';
+    updateOpeningHour(day, val);
+  };
+  const onSave = async () => {
+    setSaving(true);
+    try {
+      const current = {
+        introduction: data?.introduction || data?.description || '',
+        address: data?.address || '',
+        openingHours: data?.openingHours || data?.opening_hours || {},
+        cuisineTypes: Array.isArray(data?.cuisineTypes) ? data.cuisineTypes : (Array.isArray(data?.cuisine_types) ? data.cuisine_types : []),
+      };
+      const desired = {
+        introduction: form.introduction,
+        address: form.address,
+        openingHours: form.openingHours,
+        cuisineTypes: Array.isArray(form.cuisineTypes) ? form.cuisineTypes : String(form.cuisineTypes || '').split(',').map(s=>s.trim()).filter(Boolean),
+      };
+      const payload = {};
+      if ((current.introduction || '') !== (desired.introduction || '')) payload.introduction = desired.introduction;
+      if ((current.address || '') !== (desired.address || '')) payload.address = desired.address;
+      const sameOH = JSON.stringify(current.openingHours || {}) === JSON.stringify(desired.openingHours || {});
+      if (!sameOH) payload.openingHours = desired.openingHours;
+      const sameCuisine = JSON.stringify(current.cuisineTypes || []) === JSON.stringify(desired.cuisineTypes || []);
+      if (!sameCuisine) payload.cuisineTypes = desired.cuisineTypes;
+      // Nếu không có field nào thay đổi, bỏ qua gọi API
+      if (!Object.keys(payload).length) { setEditing(false); setSaving(false); return; }
+      const res = await merchantAPI.updateMyInfo(payload);
+      // Cập nhật lại data để reflect UI
+      setData(prev => ({ ...(prev || {}), ...payload }));
+      setEditing(false);
+    } catch (e) {
+      const status = e?.response?.status;
+      const body = e?.response?.data;
+      const msg = (body && (body.message || body.error || body.detail || body.title)) || e?.message || 'Lưu thất bại';
+      alert(`${msg}${status ? ` (HTTP ${status})` : ''}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) return <div className="info-page"><div className="card"><p>Đang tải...</p></div></div>;
   if (error) return <div className="info-page"><div className="card error">{error}</div></div>;
   if (!data) return <div className="info-page"><div className="card">Không có dữ liệu.</div></div>;
@@ -60,36 +126,60 @@ const Info = () => {
   return (
     <div className="info-page">
       <div className="card">
-        <h2 className="title">Thông tin Nhà Hàng</h2>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <h2 className="title" style={{margin:0}}>Thông tin Nhà Hàng</h2>
+          {!editing ? (
+            <button onClick={()=> setEditing(true)} className="btn-primary">Chỉnh sửa</button>
+          ) : (
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={onSave} disabled={saving} className="btn-primary">{saving ? 'Đang lưu...' : 'Lưu'}</button>
+              <button onClick={()=> { setEditing(false); setForm({ introduction: data?.introduction || data?.description || '', address: data?.address || '', openingHours: data?.openingHours || data?.opening_hours || {}, cuisineTypes: cuisineTypes }); }}>Hủy</button>
+            </div>
+          )}
+        </div>
 
         <div className="row">
           <div className="label">Tên</div>
           <div className="value">{name}</div>
         </div>
 
-        {introduction && (
+        {!editing && introduction && (
           <div className="row">
             <div className="label">Giới thiệu</div>
             <div className="value prewrap">{introduction}</div>
           </div>
         )}
+        {editing && (
+          <div className="row">
+            <div className="label">Giới thiệu</div>
+            <div className="value"><textarea className="input" rows={4} value={form.introduction} onChange={(e)=> setForm(prev=> ({...prev, introduction: e.target.value}))} /></div>
+          </div>
+        )}
 
-        {address && (
+        {!editing && address && (
           <div className="row">
             <div className="label">Địa chỉ</div>
             <div className="value">{address}</div>
           </div>
         )}
-
-        <div className="row">
-          <div className="label">Đánh giá</div>
-          <div className="value rating">
-            {avgRating != null ? Number(avgRating).toFixed(1) : 'Chưa có'}
-            <span className="muted">{` (${ratingCount} lượt)`}</span>
+        {editing && (
+          <div className="row">
+            <div className="label">Địa chỉ</div>
+            <div className="value"><input className="input" value={form.address} onChange={(e)=> setForm(prev=> ({...prev, address: e.target.value}))} /></div>
           </div>
-        </div>
+        )}
 
-        {openingHours?.length > 0 && (
+        {!editing && (
+          <div className="row">
+            <div className="label">Đánh giá</div>
+            <div className="value rating">
+              {avgRating != null ? Number(avgRating).toFixed(1) : 'Chưa có'}
+              <span className="muted">{` (${ratingCount} lượt)`}</span>
+            </div>
+          </div>
+        )}
+
+        {!editing && openingHours?.length > 0 && (
           <div className="row">
             <div className="label">Giờ mở cửa</div>
             <div className="value">
@@ -104,8 +194,25 @@ const Info = () => {
             </div>
           </div>
         )}
+        {editing && (
+          <div className="row">
+            <div className="label">Giờ mở cửa</div>
+            <div className="value">
+              <div className="hours">
+                {Object.entries(form.openingHours || {}).map(([day, val]) => (
+                  <div className="hours-row" key={day}>
+                    <span className="day" style={{textTransform:'capitalize'}}>{day}</span>
+                    <input className="input" value={val} onChange={(e)=> updateOpeningHour(day, e.target.value)} style={{minWidth:180}} />
+                    <button onClick={()=> removeOpeningHour(day)} className="btn-danger">Xóa</button>
+                  </div>
+                ))}
+              </div>
+              <button onClick={addOpeningHour} className="btn-outline" style={{marginTop:8}}>+ Thêm ngày/giờ</button>
+            </div>
+          </div>
+        )}
 
-        {cuisineTypes?.length > 0 && (
+        {!editing && cuisineTypes?.length > 0 && (
           <div className="row">
             <div className="label">Ẩm thực</div>
             <div className="value">
@@ -114,6 +221,17 @@ const Info = () => {
                   <span className="chip" key={String(c)}>{String(c)}</span>
                 ))}
               </div>
+            </div>
+          </div>
+        )}
+        {editing && (
+          <div className="row">
+            <div className="label">Ẩm thực</div>
+            <div className="value">
+              <input className="input" value={Array.isArray(form.cuisineTypes) ? form.cuisineTypes.join(', ') : String(form.cuisineTypes || '')}
+                onChange={(e)=> setForm(prev=> ({...prev, cuisineTypes: e.target.value}))}
+                placeholder="Ví dụ: Vietnamese, Chinese, Fast Food" />
+              <div className="aog-hint">Nhập danh sách, cách nhau bởi dấu phẩy.</div>
             </div>
           </div>
         )}
