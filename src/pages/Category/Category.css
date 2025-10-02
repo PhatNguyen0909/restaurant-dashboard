@@ -1,0 +1,47 @@
+.category-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+.category-create {
+  display: flex;
+  gap: 8px;
+}
+.category-create input {
+  flex: 1;
+  padding: 8px 10px;
+}
+.category-create button {
+  padding: 8px 14px;
+  border: none;
+  background: #0d6efd;
+  color: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.category-create button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.category-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.category-table th, .category-table td {
+  padding: 10px;
+  border-bottom: 1px solid #eee;
+}
+.category-table .actions button {
+  margin-right: 8px;
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  background: #f7f7f7;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.category-table .actions .danger {
+  background: #ffefef;
+  border-color: #f3c6c6;
+  color: #d9534f;
+}

@@ -93,16 +93,18 @@ const List = () => {
           setLoading(false);
           return;
         }
-        // Nếu không phải demo thì lấy từ API như cũ
-        const merchant = await merchantAPI.getMyMerchant();
-        if (!merchant || !(merchant.id || merchant._id)) {
-          setError('Không tìm thấy id nhà hàng.');
-          setLoading(false);
-          return;
-        }
-        const merchantId = merchant.id || merchant._id;
-        const data = await merchantAPI.getDish(merchantId);
-        const sorted = [...(data || [])].sort((a, b) => (a.category > b.category ? 1 : -1));
+        // Nếu không phải demo: lấy từ API mới /merchant/menu-items
+        const data = await merchantAPI.getMenuItems();
+        const uiItems = (Array.isArray(data) ? data : []).map((it) => ({
+          _id: it?._id ?? it?.id,
+          name: it?.name,
+          image: it?.imgUrl || it?.image || it?.imgURL,
+          price: it?.basePrice ?? it?.price,
+          description: it?.description,
+          category: it?.categoryName || it?.category,
+          status: (it?.status === 'ACTIVE' || it?.status === 'available') ? 'available' : 'unavailable',
+        }));
+        const sorted = uiItems.sort((a, b) => (String(a.category || '') > String(b.category || '') ? 1 : -1));
         setMenu(sorted);
       } catch (e) {
         setError('Không lấy được thực đơn.');

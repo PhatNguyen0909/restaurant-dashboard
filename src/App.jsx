@@ -10,6 +10,7 @@ import Sidebar from './components/Sidebar/Sidebar';
 import Login from './pages/Login/Login';
 import Register from './pages/Register/Register';
 import Info from './pages/Info/Info';
+import Category from './pages/Category/Category';
 
 function App() {
   const [MerchantId, setMerchantId] = useState(null);
@@ -35,6 +36,7 @@ function App() {
         <Sidebar />
         <Routes>
           <Route path='/add' element={<Add />} />
+          <Route path='/categories' element={<Category />} />
           <Route path='/add-option-group' element={<AddOptionGroup />} />
           <Route path='/list' element={<List />} />
           <Route path='/order' element={<Order />} />
