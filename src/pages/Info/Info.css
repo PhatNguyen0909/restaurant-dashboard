@@ -16,7 +16,7 @@
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { background: #f3f4f6; border: 1px solid #e5e7eb; padding: 6px 10px; border-radius: 999px; font-size: 12px; color: #374151; }
 
-@media (max-width: 640px) { .row { grid-template-columns: 1fr; } .day { min-width: auto; } }
+@media (max-width: 900px) { .row { grid-template-columns: 1fr; } .day { min-width: auto; } }
 
 /* form controls */
 .input { border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; width: 100%; outline: none; }

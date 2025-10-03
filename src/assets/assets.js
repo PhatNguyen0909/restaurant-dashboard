@@ -341,3 +341,79 @@ export const food_list = [
     { _id: "47", restaurantId: "3", name: "Trà Sữa Matcha Kem Cheese", image: food_9, price: 39000, description: "Trà sữa matcha phủ kem cheese mặn.", category: "Trà/Café", status: "available" },
     { _id: "48", restaurantId: "3", name: "Bánh Ngọt Bơ Sữa", image: food_22, price: 30000, description: "Bánh ngọt mềm, thơm bơ sữa.", category: "Bánh ngọt", status: "available" }
 ];
+
+export const order_list = [
+  {
+    id: 1,
+    user_id: 101,
+    full_name: "Nguyễn Văn A",
+    phone: "0901234567",
+    address: "123 Phố Cổ, Hoàn Kiếm, Hà Nội",
+    created_at: "2025-09-29T10:15:00",
+    status: "delivered",
+    total_amount: 120000,
+    items: [
+      {
+        dish_id: 1,
+        name: "Greek salad",
+        quantity: 2,
+        base_price: 25000,
+        subtotal: 50000,
+        options: [
+          { option: "Không hành", extra_price: 0 },
+        ]
+      },
+      {
+        dish_id: 7,
+        name: "Chicken Rolls",
+        quantity: 1,
+        base_price: 20000,
+        subtotal: 20000,
+        options: []
+      }
+    ],
+    payment: {
+      method: "cash",
+      status: "paid"
+    }
+  },
+  {
+    id: 2,
+    user_id: 102,
+    full_name: "Trần Thị B",
+    phone: "0912345678",
+    address: "8/15 Lê Thánh Tôn, Quận 1, TP.HCM",
+    created_at: "2025-09-30T08:30:00",
+    status: "pending",
+    total_amount: 65000,
+    items: [
+      {
+        dish_id: 45,
+        name: "Bánh Kem Tiramisu Nhỏ",
+        quantity: 1,
+        base_price: 65000,
+        subtotal: 65000,
+        options: []
+      }
+    ],
+    payment: {
+      method: "momo",
+      status: "unpaid"
+    }
+  },
+  {
+    id: 3,
+    user_id: 103,
+    full_name: "Lê Văn C",
+    phone: "0987654321",
+    address: "421C Nguyễn Thị Minh Khai, Quận 3, TP.HCM",
+    created_at: "2025-09-28T19:45:00",
+    status: "canceled",
+    total_amount: 0,
+    items: [],
+    payment: {
+      method: "cash",
+      status: "canceled"
+    }
+  }
+];
