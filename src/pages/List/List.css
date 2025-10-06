@@ -21,18 +21,26 @@
   filter: grayscale(0.5);
 }
 
-/* Hiệu ứng mở/đóng cho menu-items-row */
+/* Hiệu ứng mở/đóng + layout cho hàng item */
 .menu-items-row {
-  min-height: 0;
-  min-width: 100%;
+  /* animation */
+  max-height: 2000px; /* đủ lớn để animate khi mở/đóng */
   opacity: 1;
   transform: translateY(0);
   transition: max-height 0.35s cubic-bezier(.4,2,.6,1), opacity 0.25s, transform 0.25s;
   overflow: hidden;
-  pointer-events: none;
+
+  /* layout */
+  width: 100%;
   display: grid;
-  gap:20px;
-  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 20px;
+  /* Các card có độ rộng cố định hợp lý; còn chỗ sẽ để trống bên phải (bám trái) */
+  grid-template-columns: repeat(auto-fill, minmax(260px, 320px));
+  justify-content: start; /* luôn bám trái khi còn khoảng trống */
+  justify-items: stretch;
+  align-items: stretch;
+  margin-bottom: 28px;
+  pointer-events: auto;
 }
 .menu-category-block.closed .menu-items-row {
   max-height: 0;
@@ -41,23 +49,12 @@
   pointer-events: none;
 }
 
-
-@media (min-width: 700px){
-  .menu-items-row{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (min-width: 1000px){
-  .menu-items-row{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-@media (min-width: 1250px){
-  .menu-items-row{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
-}
-
 .food-card {
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 14px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-  width: 100%;
+  width: 100%; /* theo track của grid */
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -146,19 +143,19 @@
   border-bottom: 2px solid #f0f0f0;
   margin-bottom: 12px;
   display: flex;
-  min-width: 100%;
+  width: 100%;
 }
 .list-grouped-menu{
-  display: block;
-  min-width: 100%;
-  margin-left: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
 }
 
 .menu-category-block {
-  min-width: 100%;
-  display: block;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
   transition: background 1s;
-  margin-left: 0;
 
 }
 /* layout settings for .menu-items-row defined above; extra specificity not needed */
@@ -224,23 +221,22 @@
 
 
 .list-title-wrapper {
-
-  
-  justify-content: center;
-  align-items: center;
+  display: block;
   width: 100%;
   margin-bottom: 16px;
 }
 .list-container {
   padding: 28px 24px;
   max-width: 1200px;
-  margin: 0;
+  margin: 0; /* căn trái theo vùng nội dung, không ép center */
+  flex: 1; /* chiếm hết phần còn lại bên cạnh sidebar */
 
 }
 .list-title {
   font-size: 1.6em;
   margin-bottom: 12px;
   font-weight: 700;
+  text-align: left;
 
 }
 
@@ -269,3 +265,6 @@
   transition: background 0.2s, transform 0.2s;
 }
 .btn-add-option:hover{ background: #ff7043; transform: translateY(-1px); }
+
+/* Giữ không gian scrollbar để tránh nhảy layout khi mở/đóng danh mục */
+html { scrollbar-gutter: stable both-edges; }
