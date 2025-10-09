@@ -15,6 +15,15 @@
 .hours-value { color: #111827; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { background: #f3f4f6; border: 1px solid #e5e7eb; padding: 6px 10px; border-radius: 999px; font-size: 12px; color: #374151; }
+.multi-select { position: relative; max-width: 360px; }
+.multi-select-toggle { text-align: left; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+.multi-select-toggle .multi-select-caret { margin-left: 8px; transition: transform .2s ease; }
+.multi-select-toggle .multi-select-caret.open { transform: rotate(180deg); }
+.multi-select-dropdown { position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; background: #fff; border: 1px solid #cbd5e1; border-radius: 10px; padding: 12px; box-shadow: 0 12px 20px rgba(15,23,42,.12); min-width: 260px; max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.multi-select-option { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #1f2937; cursor: pointer; }
+.multi-select-option input[type="checkbox"] { width: 16px; height: 16px; }
+.multi-select-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.error-text { color: #dc2626; font-size: 13px; }
 
 @media (max-width: 900px) { .row { grid-template-columns: 1fr; } .day { min-width: auto; } }
 

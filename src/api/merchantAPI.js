@@ -1,4 +1,5 @@
 import apiClient from "./apiClient";
+import { getToken } from "../utils/tokenUtils";
 
 const merchantAPI = {
   // Tạo menu item mới (multipart/form-data)
@@ -95,60 +96,77 @@ const merchantAPI = {
     return res.data?.data;
   },
   // Cập nhật thông tin merchant hiện tại (thử nhiều endpoint/phương thức/phân phối key)
-  updateMyInfo: async (payload) => {
-    const cuisineArr = Array.isArray(payload?.cuisineTypes)
-      ? payload.cuisineTypes
-      : (typeof payload?.cuisineTypes === 'string'
-          ? payload.cuisineTypes.split(',').map(s=>s.trim()).filter(Boolean)
-          : []);
-    const camel = {
-      introduction: payload?.introduction ?? '',
-      address: payload?.address ?? '',
-      openingHours: payload?.openingHours || {},
-      cuisineTypes: cuisineArr,
-    };
-    const snake = {
-      introduction: camel.introduction,
-      address: camel.address,
-      opening_hours: camel.openingHours,
-      cuisine_types: camel.cuisineTypes,
+  updateMyInfo: async (payload = {}) => {
+    const hasKey = (obj, key) => Object.prototype.hasOwnProperty.call(obj ?? {}, key);
+
+    const token = getToken();
+    if (!token) {
+      throw new Error('Bạn cần đăng nhập lại trước khi cập nhật thông tin.');
+    }
+    const baseHeaders = {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+      Role: 'MERCHANT_ADMIN',
+      'X-Role': 'MERCHANT_ADMIN',
     };
 
-    // Env override cho path và method
+    const camel = {};
+    if (hasKey(payload, 'introduction')) {
+      camel.introduction = String(payload?.introduction ?? '').trim();
+    }
+    if (hasKey(payload, 'address')) {
+      camel.address = String(payload?.address ?? '').trim();
+    }
+
+    const rawOpening = hasKey(payload, 'openingHours')
+      ? payload?.openingHours
+      : (hasKey(payload, 'opening_hours') ? payload?.opening_hours : undefined);
+    if (rawOpening !== undefined) {
+      if (rawOpening && typeof rawOpening === 'object') {
+        const normalized = {};
+        Object.entries(rawOpening).forEach(([day, value]) => {
+          if (value != null && value !== '') {
+            normalized[day] = String(value);
+          }
+        });
+        camel.openingHours = normalized;
+      } else {
+        camel.openingHours = {};
+      }
+    }
+
+    const rawCuisine = hasKey(payload, 'cuisineTypes')
+      ? payload?.cuisineTypes
+      : (hasKey(payload, 'cuisine_types') ? payload?.cuisine_types : undefined);
+    if (rawCuisine !== undefined) {
+      const cuisineArr = Array.isArray(rawCuisine)
+        ? rawCuisine
+        : (typeof rawCuisine === 'string'
+            ? rawCuisine.split(',')
+            : []);
+      camel.cuisineTypes = cuisineArr
+        .map((s) => String(s).trim())
+        .filter((s) => s.length > 0);
+    }
+
+    const snake = {};
+    if ('introduction' in camel) snake.introduction = camel.introduction;
+    if ('address' in camel) snake.address = camel.address;
+    if ('openingHours' in camel) snake.opening_hours = camel.openingHours;
+    if ('cuisineTypes' in camel) snake.cuisine_types = camel.cuisineTypes;
+
+    const bodies = [camel, snake].filter((obj) => Object.keys(obj).length > 0);
+    if (!bodies.length) throw new Error('No update payload provided');
+
+    // Env override cho path (mặc định vẫn PUT /merchant/my-merchant)
     const envPath = (typeof import.meta !== 'undefined' && import.meta?.env?.VITE_MERCHANT_UPDATE_PATH) || '';
-    const envMethod = (typeof import.meta !== 'undefined' && import.meta?.env?.VITE_MERCHANT_UPDATE_METHOD) || '';
-
-    const candidates = [
-      envPath && { method: (envMethod || 'patch').toLowerCase(), path: envPath },
-      { method: 'put',   path: '/merchant/my-merchant' },
-      { method: 'patch', path: '/merchant/my-merchant' },
-      { method: 'put',   path: '/merchant' },
-      { method: 'patch', path: '/merchant' },
-      { method: 'put',   path: '/merchant/update' },
-      { method: 'post',  path: '/merchant/update-my-merchant' },
-      { method: 'patch', path: '/merchant/profile' },
-    ].filter(Boolean);
-    const bodies = [camel, snake];
+    const candidates = [envPath || '/merchant/my-merchant'];
     let lastErr;
-    for (const c of candidates) {
+    for (const path of candidates) {
       for (const b of bodies) {
         try {
-          const method = (c.method || 'patch').toLowerCase();
-          const headers = { Accept: 'application/json' };
-          if (method === 'post') {
-            const res = await apiClient.post(c.path, b, { headers });
-            return res?.data?.data ?? res?.data ?? true;
-          }
-          if (method === 'put') {
-            const res = await apiClient.put(c.path, b, { headers });
-            return res?.data?.data ?? res?.data ?? true;
-          }
-          if (method === 'patch') {
-            const res = await apiClient.patch(c.path, b, { headers });
-            return res?.data?.data ?? res?.data ?? true;
-          }
-          // Try override header if method unsupported
-          const res = await apiClient.post(c.path, b, { headers: { ...headers, 'X-HTTP-Method-Override': (method || 'PATCH').toUpperCase() } });
+          const headers = { ...baseHeaders };
+          const res = await apiClient.put(path, b, { headers });
           return res?.data?.data ?? res?.data ?? true;
         } catch (e) {
           lastErr = e;
