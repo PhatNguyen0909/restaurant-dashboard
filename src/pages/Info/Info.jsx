@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import './Info.css';
 import merchantAPI from '../../api/merchantAPI';
+import userAPI from '../../api/userAPI';
 
 // Weekday ordering helper
 const WEEK_ORDER = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
@@ -13,6 +14,11 @@ const Info = () => {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ introduction: '', address: '', openingHours: {}, cuisineTypes: [] });
+  const [cuisineOptions, setCuisineOptions] = useState([]);
+  const [cuisineLoading, setCuisineLoading] = useState(false);
+  const [cuisineError, setCuisineError] = useState('');
+  const [cuisineDropdownOpen, setCuisineDropdownOpen] = useState(false);
+  const cuisineDropdownRef = useRef(null);
 
   useEffect(() => {
     let mounted = true;
@@ -38,6 +44,30 @@ const Info = () => {
     return () => { mounted = false; };
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setCuisineLoading(true);
+        const list = await userAPI.getCuisineTypes();
+        if (!mounted) return;
+        const normalized = Array.isArray(list)
+          ? list.map((item) => (typeof item === 'string' ? item : (item?.name || item?.title || item?.label || item?.value || '')).trim()).filter(Boolean)
+          : [];
+        setCuisineOptions(Array.from(new Set(normalized)));
+        setCuisineError('');
+      } catch (e) {
+        if (mounted) {
+          setCuisineError('Không thể tải danh sách ẩm thực.');
+          setCuisineOptions([]);
+        }
+      } finally {
+        if (mounted) setCuisineLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
   const openingHours = useMemo(() => {
     const map = data?.openingHours || data?.opening_hours || {};
     // Convert entry list and sort by weekday order; keep unknowns last
@@ -58,6 +88,26 @@ const Info = () => {
     // Backend could return as object/set-like; normalize to array of keys/values
     return Object.values(raw ?? {});
   }, [data]);
+
+  const cuisineSelectOptions = useMemo(() => {
+    const base = Array.isArray(cuisineOptions) ? cuisineOptions : [];
+    const selected = Array.isArray(form.cuisineTypes) ? form.cuisineTypes : [];
+    return Array.from(new Set([...base, ...selected.filter(Boolean)]));
+  }, [cuisineOptions, form.cuisineTypes]);
+
+  useEffect(() => {
+    if (!cuisineDropdownOpen) return undefined;
+    const handler = (event) => {
+      if (!cuisineDropdownRef.current) return;
+      if (!cuisineDropdownRef.current.contains(event.target)) {
+        setCuisineDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+    };
+  }, [cuisineDropdownOpen]);
 
   const updateOpeningHour = (day, value) => {
     setForm(prev => ({ ...prev, openingHours: { ...prev.openingHours, [day]: value } }));
@@ -99,7 +149,15 @@ const Info = () => {
       if (!sameCuisine) payload.cuisineTypes = desired.cuisineTypes;
       // Nếu không có field nào thay đổi, bỏ qua gọi API
       if (!Object.keys(payload).length) { setEditing(false); setSaving(false); return; }
-      const res = await merchantAPI.updateMyInfo(payload);
+
+      const requestBody = {
+        introduction: payload.introduction ?? current.introduction ?? '',
+        address: payload.address ?? current.address ?? '',
+        openingHours: payload.openingHours ?? current.openingHours ?? {},
+        cuisineTypes: payload.cuisineTypes ?? current.cuisineTypes ?? [],
+      };
+
+      const res = await merchantAPI.updateMyInfo(requestBody);
       // Cập nhật lại data để reflect UI
       setData(prev => ({ ...(prev || {}), ...payload }));
       setEditing(false);
@@ -228,10 +286,67 @@ const Info = () => {
           <div className="row">
             <div className="label">Ẩm thực</div>
             <div className="value">
-              <input className="input" value={Array.isArray(form.cuisineTypes) ? form.cuisineTypes.join(', ') : String(form.cuisineTypes || '')}
-                onChange={(e)=> setForm(prev=> ({...prev, cuisineTypes: e.target.value}))}
-                placeholder="Ví dụ: Vietnamese, Chinese, Fast Food" />
-              <div className="aog-hint">Nhập danh sách, cách nhau bởi dấu phẩy.</div>
+              <div className="multi-select" ref={cuisineDropdownRef}>
+                <button
+                  type="button"
+                  className="input multi-select-toggle"
+                  onClick={()=> setCuisineDropdownOpen(prev => !prev)}
+                >
+                  {Array.isArray(form.cuisineTypes) && form.cuisineTypes.length
+                    ? form.cuisineTypes.join(', ')
+                    : 'Chọn ẩm thực'}
+                  <span className={`multi-select-caret ${cuisineDropdownOpen ? 'open' : ''}`}>▾</span>
+                </button>
+                {cuisineDropdownOpen && (
+                  <div className="multi-select-dropdown">
+                    {cuisineLoading ? (
+                      <div className="muted">Đang tải ẩm thực...</div>
+                    ) : cuisineError ? (
+                      <div className="error-text">{cuisineError}</div>
+                    ) : cuisineSelectOptions.length ? (
+                      cuisineSelectOptions.map((opt) => {
+                        const checked = Array.isArray(form.cuisineTypes) ? form.cuisineTypes.includes(opt) : false;
+                        return (
+                          <label key={opt} className="multi-select-option">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e)=> {
+                                setForm(prev => {
+                                  const current = Array.isArray(prev.cuisineTypes) ? [...prev.cuisineTypes] : [];
+                                  if (e.target.checked) {
+                                    if (!current.includes(opt)) current.push(opt);
+                                  } else {
+                                    const idx = current.indexOf(opt);
+                                    if (idx !== -1) current.splice(idx, 1);
+                                  }
+                                  return { ...prev, cuisineTypes: current };
+                                });
+                              }}
+                            />
+                            <span>{opt}</span>
+                          </label>
+                        );
+                      })
+                    ) : (
+                      <div className="muted">Không có dữ liệu ẩm thực.</div>
+                    )}
+                    <div className="multi-select-actions">
+                      <button type="button" className="btn-outline" onClick={()=> setCuisineDropdownOpen(false)}>Xong</button>
+                      {Array.isArray(form.cuisineTypes) && form.cuisineTypes.length > 0 && (
+                        <button
+                          type="button"
+                          className="btn-danger"
+                          onClick={()=> {
+                            setForm(prev => ({ ...prev, cuisineTypes: [] }));
+                          }}
+                        >Bỏ chọn</button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="aog-hint">Chọn nhiều mục bằng checkbox.</div>
             </div>
           </div>
         )}
