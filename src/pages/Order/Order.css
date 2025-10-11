@@ -42,6 +42,17 @@
  
     border-bottom: 3px solid tomato;
 }
+.order-tab.refresh {
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  background: #f9f9f9;
+  font-weight: 500;
+  color: #444;
+}
+.order-tab.refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 .order-list-cards {
   display: flex;
   flex-direction: column;
