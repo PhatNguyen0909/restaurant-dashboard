@@ -9,6 +9,8 @@ const Category = () => {
   const [newName, setNewName] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [editingName, setEditingName] = useState('');
+  const [editingKey, setEditingKey] = useState('');
+  const [merchantId, setMerchantId] = useState(null);
 
   const refresh = async () => {
     setLoading(true);
@@ -21,6 +23,17 @@ const Category = () => {
   };
 
   useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    (async () => {
+      try {
+        const info = await merchantAPI.getMyMerchant();
+        const id = info?.id ?? info?._id ?? info?.merchantId ?? info?.merchant_id;
+        if (id != null) setMerchantId(id);
+      } catch {
+        setMerchantId(null);
+      }
+    })();
+  }, []);
 
   const onCreate = async (e) => {
     e?.preventDefault?.();
@@ -28,7 +41,7 @@ const Category = () => {
     if (!newName.trim()) return;
     try {
       setCreating(true);
-      await merchantAPI.createCategory(newName.trim());
+      await merchantAPI.createCategory({ name: newName.trim(), merchantId });
       setNewName('');
       await refresh();
     } catch (err) {
@@ -42,15 +55,17 @@ const Category = () => {
   const startEdit = (item) => {
     setEditingId(item?.id ?? item?._id ?? item?.categoryId);
     setEditingName(item?.name ?? item?.categoryName ?? item?.title ?? '');
+    setEditingKey(item?.categoryKey ?? item?.categoryName ?? item?.title ?? '');
   };
 
   const onSaveEdit = async () => {
     const id = editingId;
     if (!id) return;
     try {
-      await merchantAPI.updateCategory(id, editingName.trim());
+      await merchantAPI.updateCategory(id, { name: editingName.trim(), merchantId, categoryKey: editingKey });
       setEditingId(null);
       setEditingName('');
+      setEditingKey('');
       await refresh();
     } catch (err) {
       // eslint-disable-next-line no-alert
@@ -73,6 +88,7 @@ const Category = () => {
     return items.map((x) => ({
       id: x?.id ?? x?._id ?? x?.categoryId,
       name: x?.name ?? x?.categoryName ?? x?.title,
+      categoryKey: x?.categoryName ?? x?.category_name ?? x?.code ?? '',
     })).filter(it => it.id != null);
   }, [items]);
 
@@ -97,7 +113,6 @@ const Category = () => {
         <table className="category-table">
           <thead>
             <tr>
-              <th style={{width: 120}}>ID</th>
               <th>Tên danh mục</th>
               <th style={{width: 220}}>Thao tác</th>
             </tr>
@@ -105,7 +120,6 @@ const Category = () => {
           <tbody>
             {normalized.map((item) => (
               <tr key={item.id}>
-                <td>{item.id}</td>
                 <td>
                   {editingId === item.id ? (
                     <input
@@ -120,7 +134,7 @@ const Category = () => {
                   {editingId === item.id ? (
                     <>
                       <button onClick={onSaveEdit}>Lưu</button>
-                      <button onClick={() => setEditingId(null)}>Hủy</button>
+                      <button onClick={() => { setEditingId(null); setEditingName(''); setEditingKey(''); }}>Hủy</button>
                     </>
                   ) : (
                     <>
@@ -133,7 +147,7 @@ const Category = () => {
             ))}
             {normalized.length === 0 && (
               <tr>
-                <td colSpan={3} style={{ textAlign: 'center', color: '#777' }}>
+                <td colSpan={2} style={{ textAlign: 'center', color: '#777' }}>
                   Chưa có danh mục nào
                 </td>
               </tr>

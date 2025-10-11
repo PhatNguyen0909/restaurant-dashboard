@@ -6,6 +6,16 @@ import userAPI from '../../api/userAPI';
 // Weekday ordering helper
 const WEEK_ORDER = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
 const normalizeKey = (k = '') => String(k).toLowerCase();
+const ensureWeeklyOpeningHours = (source = {}) => {
+  const result = {};
+  const entries = Object.entries(source || {});
+  WEEK_ORDER.forEach((day) => {
+    const matched = entries.find(([key]) => normalizeKey(key) === day);
+    const value = matched ? matched[1] : '';
+    result[day] = value ?? '';
+  });
+  return result;
+};
 
 const Info = () => {
   const [data, setData] = useState(null);
@@ -30,7 +40,7 @@ const Info = () => {
           const formInit = {
             introduction: res?.introduction || res?.description || '',
             address: res?.address || '',
-            openingHours: res?.openingHours || res?.opening_hours || {},
+            openingHours: ensureWeeklyOpeningHours(res?.openingHours || res?.opening_hours || {}),
             cuisineTypes: Array.isArray(res?.cuisineTypes) ? res.cuisineTypes : (Array.isArray(res?.cuisine_types) ? res.cuisine_types : []),
           };
           setForm(formInit);
@@ -110,20 +120,15 @@ const Info = () => {
   }, [cuisineDropdownOpen]);
 
   const updateOpeningHour = (day, value) => {
-    setForm(prev => ({ ...prev, openingHours: { ...prev.openingHours, [day]: value } }));
-  };
-  const removeOpeningHour = (day) => {
-    setForm(prev => {
-      const next = { ...prev.openingHours };
-      delete next[day];
-      return { ...prev, openingHours: next };
-    });
-  };
-  const addOpeningHour = () => {
-    const day = prompt('Nhập ngày (ví dụ: monday, tuesday, ...)');
-    if (!day) return;
-    const val = prompt('Giờ mở cửa (ví dụ: 08:00-21:00)') || '';
-    updateOpeningHour(day, val);
+    const key = normalizeKey(day);
+    const normalized = WEEK_ORDER.includes(key) ? key : day;
+    setForm(prev => ({
+      ...prev,
+      openingHours: {
+        ...ensureWeeklyOpeningHours(prev.openingHours),
+        [normalized]: value,
+      },
+    }));
   };
   const onSave = async () => {
     setSaving(true);
@@ -131,15 +136,23 @@ const Info = () => {
       const current = {
         introduction: data?.introduction || data?.description || '',
         address: data?.address || '',
-        openingHours: data?.openingHours || data?.opening_hours || {},
+        openingHours: ensureWeeklyOpeningHours(data?.openingHours || data?.opening_hours || {}),
         cuisineTypes: Array.isArray(data?.cuisineTypes) ? data.cuisineTypes : (Array.isArray(data?.cuisine_types) ? data.cuisine_types : []),
       };
       const desired = {
         introduction: form.introduction,
         address: form.address,
-        openingHours: form.openingHours,
+        openingHours: ensureWeeklyOpeningHours(form.openingHours),
         cuisineTypes: Array.isArray(form.cuisineTypes) ? form.cuisineTypes : String(form.cuisineTypes || '').split(',').map(s=>s.trim()).filter(Boolean),
       };
+
+      const missingDays = WEEK_ORDER.filter((day) => !String(desired.openingHours?.[day] ?? '').trim());
+      if (missingDays.length > 0) {
+        const pretty = missingDays.map((day) => day.charAt(0).toUpperCase() + day.slice(1));
+        alert(`Vui lòng nhập thời gian cho các ngày: ${pretty.join(', ')}`);
+        return;
+      }
+
       const payload = {};
       if ((current.introduction || '') !== (desired.introduction || '')) payload.introduction = desired.introduction;
       if ((current.address || '') !== (desired.address || '')) payload.address = desired.address;
@@ -157,7 +170,7 @@ const Info = () => {
         cuisineTypes: payload.cuisineTypes ?? current.cuisineTypes ?? [],
       };
 
-      const res = await merchantAPI.updateMyInfo(requestBody);
+      await merchantAPI.updateMyInfo(requestBody);
       // Cập nhật lại data để reflect UI
       setData(prev => ({ ...(prev || {}), ...payload }));
       setEditing(false);
@@ -191,7 +204,7 @@ const Info = () => {
           ) : (
             <div style={{display:'flex',gap:8}}>
               <button onClick={onSave} disabled={saving} className="btn-primary">{saving ? 'Đang lưu...' : 'Lưu'}</button>
-              <button onClick={()=> { setEditing(false); setForm({ introduction: data?.introduction || data?.description || '', address: data?.address || '', openingHours: data?.openingHours || data?.opening_hours || {}, cuisineTypes: cuisineTypes }); }}>Hủy</button>
+              <button onClick={()=> { setEditing(false); setForm({ introduction: data?.introduction || data?.description || '', address: data?.address || '', openingHours: ensureWeeklyOpeningHours(data?.openingHours || data?.opening_hours || {}), cuisineTypes: cuisineTypes }); }}>Hủy</button>
             </div>
           )}
         </div>
@@ -257,15 +270,24 @@ const Info = () => {
             <div className="label">Giờ mở cửa</div>
             <div className="value">
               <div className="hours">
-                {Object.entries(form.openingHours || {}).map(([day, val]) => (
-                  <div className="hours-row" key={day}>
-                    <span className="day" style={{textTransform:'capitalize'}}>{day}</span>
-                    <input className="input" value={val} onChange={(e)=> updateOpeningHour(day, e.target.value)} style={{minWidth:180}} />
-                    <button onClick={()=> removeOpeningHour(day)} className="btn-danger">Xóa</button>
-                  </div>
-                ))}
+                {WEEK_ORDER.map((day) => {
+                  const value = form.openingHours?.[day] ?? '';
+                  const label = day.charAt(0).toUpperCase() + day.slice(1);
+                  return (
+                    <div className="hours-row" key={day}>
+                      <span className="day" style={{textTransform:'capitalize'}}>{label}</span>
+                      <input
+                        className="input"
+                        value={value}
+                        placeholder="Ví dụ: 08:00-21:00"
+                        onChange={(e)=> updateOpeningHour(day, e.target.value)}
+                        style={{minWidth:180}}
+                      />
+                    </div>
+                  );
+                })}
               </div>
-              <button onClick={addOpeningHour} className="btn-outline" style={{marginTop:8}}>+ Thêm ngày/giờ</button>
+              <div className="muted" style={{marginTop:8}}>Vui lòng nhập thời gian cho đầy đủ các ngày trong tuần.</div>
             </div>
           </div>
         )}
