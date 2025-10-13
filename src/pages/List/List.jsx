@@ -5,6 +5,7 @@ import merchantAPI from '../../api/merchantAPI';
 import './List.css';
 import { NavLink } from 'react-router-dom';
 import { food_list, assets } from '../../assets/assets';
+import OptionGroupsTab from '../OptionGroupsTab/OptionGroupsTab';
 
 
 
@@ -15,6 +16,7 @@ const List = () => {
   const [showMenu, setShowMenu] = useState(false);
   // State cho mở/đóng từng category
   const [openCategories, setOpenCategories] = useState({});
+  const [activeTab, setActiveTab] = useState('foods'); // 'foods' | 'groups'
 
   const handleToggleCategory = (cat) => {
     setOpenCategories((prev) => ({
@@ -128,46 +130,58 @@ const List = () => {
       <div className="list-title-wrapper">
         <h2 className="list-title">Danh sách thực đơn</h2>
       </div>
-      {loading && <div className="list-loading">Đang tải...</div>}
-      {error && <div className="list-error">{error}</div>}
-      {!loading && !error && (
-        <div className="list-grouped-menu">
-          {Object.keys(groupedMenu).map((cat) => {
-            const isOpen = openCategories[cat] !== false; // mặc định mở
-            return (
-              <div className={`menu-category-block${!isOpen ? ' closed' : ''}`} key={cat}>
-                <div className="menu-category-title menu-category-toggle" onClick={() => handleToggleCategory(cat)}>
-                  <span className="menu-category-name">{cat}</span>
-                  <img
-                    src={isOpen ? assets.up : assets.down}
-                    alt={isOpen ? 'Thu gọn' : 'Mở rộng'}
-                    className="menu-category-icon"
-                  />
-                </div>
-                <div className="menu-items-row">
-                  {isOpen && groupedMenu[cat].map((item) => (
-                    <div className="food-card" key={item._id}>
-                      <div className="food-card-img-wrap">
-                        <img src={item.image} alt={item.name} className="food-card-img" />
-                      </div>
-                      <div className="food-card-info">
-                        <div className="food-card-name">{item.name}</div>
-                        <div className="food-card-price">{item.price?.toLocaleString?.() || item.price}đ</div>
-                        <div className="food-card-desc">{item.description}</div>
-                        <button
-                          onClick={() => isDemoUser ? handleToggleStatusDemo(item) : handleToggleStatus(item)}
-                          className={`food-card-status ${item.status === 'available' ? 'available' : 'unavailable'}`}
-                        >
-                          {item.status === 'available' ? 'Còn bán' : 'Hết bán'}
-                        </button>
-                      </div>
+      <div className="list-tabs">
+        <button className={`list-tab ${activeTab==='foods'?'active':''}`} onClick={()=> setActiveTab('foods')}>Món ăn</button>
+        <button className={`list-tab ${activeTab==='groups'?'active':''}`} onClick={()=> setActiveTab('groups')}>Tùy chọn nhóm</button>
+      </div>
+      {activeTab === 'foods' && (
+        <>
+          {loading && <div className="list-loading">Đang tải...</div>}
+          {error && <div className="list-error">{error}</div>}
+          {!loading && !error && (
+            <div className="list-grouped-menu">
+              {Object.keys(groupedMenu).map((cat) => {
+                const isOpen = openCategories[cat] !== false; // mặc định mở
+                return (
+                  <div className={`menu-category-block${!isOpen ? ' closed' : ''}`} key={cat}>
+                    <div className="menu-category-title menu-category-toggle" onClick={() => handleToggleCategory(cat)}>
+                      <span className="menu-category-name">{cat}</span>
+                      <img
+                        src={isOpen ? assets.up : assets.down}
+                        alt={isOpen ? 'Thu gọn' : 'Mở rộng'}
+                        className="menu-category-icon"
+                      />
                     </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                    <div className="menu-items-row">
+                      {isOpen && groupedMenu[cat].map((item) => (
+                        <div className="food-card" key={item._id}>
+                          <div className="food-card-img-wrap">
+                            <img src={item.image} alt={item.name} className="food-card-img" />
+                          </div>
+                          <div className="food-card-info">
+                            <div className="food-card-name">{item.name}</div>
+                            <div className="food-card-price">{item.price?.toLocaleString?.() || item.price}đ</div>
+                            <div className="food-card-desc">{item.description}</div>
+                            <button
+                              onClick={() => isDemoUser ? handleToggleStatusDemo(item) : handleToggleStatus(item)}
+                              className={`food-card-status ${item.status === 'available' ? 'available' : 'unavailable'}`}
+                            >
+                              {item.status === 'available' ? 'Còn bán' : 'Hết bán'}
+                            </button>
+                            {/* Nút Quản lý đã bỏ theo yêu cầu */}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+      {activeTab === 'groups' && (
+        <OptionGroupsTab />
       )}
       {/* Floating Add Button with Hover Menu - wrapper ensures menu stays open when moving between button and menu */}
       <div
@@ -183,8 +197,17 @@ const List = () => {
         </div>
         {showMenu && (
           <div className='add-fab-menu' style={{ zIndex: 120, pointerEvents: 'auto' }}>
-            <NavLink className='add-fab-menu-item' to='/add'>Thêm món ăn</NavLink>
-            <NavLink className='add-fab-menu-item' to='/add-option-group'>Thêm option group</NavLink>
+            {activeTab === 'foods' ? (
+              <>
+                <NavLink className='add-fab-menu-item' to='/add#edit'>Chỉnh sửa món ăn</NavLink>
+                <NavLink className='add-fab-menu-item' to='/add'>Tạo món ăn</NavLink>
+              </>
+            ) : (
+              <>
+                <NavLink className='add-fab-menu-item' to='/add-option-group#manage'>Chỉnh sửa nhóm</NavLink>
+                <NavLink className='add-fab-menu-item' to='/add-option-group#create'>Thêm tuỳ chọn</NavLink>
+              </>
+            )}
           </div>
         )}
       </div>
