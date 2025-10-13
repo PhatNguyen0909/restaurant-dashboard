@@ -295,32 +295,44 @@ const merchantAPI = {
 	},
 
 	// Orders
-	getOrders: async () => {
-		const res = await apiClient.get("/merchant/order");
-		const raw = res?.data?.data ?? res?.data;
-		const candidateArrays = [
-			raw,
-			raw?.items,
-			raw?.orders,
-			raw?.data,
-			raw?.results,
-			raw?.content,
-			raw?.records,
-		];
-		for (const arr of candidateArrays) {
-			if (Array.isArray(arr)) return arr;
-			if (Array.isArray(arr?.items)) return arr.items;
-		}
-		return [];
-	},
+		getOrders: async () => {
+			const res = await apiClient.get("/merchant/order");
+			const raw = res?.data?.data ?? res?.data;
+			const candidateArrays = [
+				raw,
+				raw?.items,
+				raw?.orders,
+				raw?.data,
+				raw?.results,
+				raw?.content,
+				raw?.records,
+			];
+			for (const arr of candidateArrays) {
+				if (Array.isArray(arr)) return arr;
+				if (Array.isArray(arr?.items)) return arr.items;
+			}
+			return [];
+		},
 
-	getOrderDetail: async (orderId) => {
-		if (orderId === undefined || orderId === null) {
-			throw new Error("orderId is required");
-		}
-		const res = await apiClient.get(`/customer/merchant/order/${orderId}`);
-		return res?.data?.data ?? res?.data;
-	},
+		getOrderDetail: async (orderId) => {
+			if (orderId === undefined || orderId === null) {
+				throw new Error("orderId is required");
+			}
+			const res = await apiClient.get(`/customer/merchant/order/${orderId}`);
+			return res?.data?.data ?? res?.data;
+		},
+
+		// Update order status
+		updateOrderStatus: async (orderId, status, cancelReason = undefined) => {
+			if (!orderId) throw new Error('orderId is required');
+			const body = { status };
+			if (cancelReason) body.cancelReason = cancelReason;
+			const res = await apiClient.patch(`/merchant/order/${orderId}`, body, {
+				headers: { Accept: 'application/json' },
+			});
+			return res?.data?.data ?? res?.data;
+		},
+	
 };
 
 export default merchantAPI;

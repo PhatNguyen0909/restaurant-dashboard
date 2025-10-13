@@ -1,0 +1,16 @@
+.ogt-wrap{padding:10px 0}
+.ogt-head h3{margin:0}
+.ogt-sub{color:#64748b;font-size:12px;margin:4px 0 10px}
+.ogt-list{display:flex;flex-direction:column;gap:8px}
+.ogt-item{border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;background:#fff}
+.ogt-item-head{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer}
+.ogt-caret{width:16px;text-align:center}
+.ogt-title{font-weight:600}
+.ogt-meta{margin-left:auto;color:#6b7280;font-size:12px}
+.ogt-values{border-top:1px solid #f1f5f9;padding:8px 10px}
+.ogt-value-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e5e7eb}
+.ogt-value-row:last-child{border-bottom:none}
+.ogt-value-name{font-weight:500}
+.ogt-value-price{color:#64748b}
+.ogt-hint{color:#6b7280;font-size:12px}
+.ogt-error{color:#b91c1c}
