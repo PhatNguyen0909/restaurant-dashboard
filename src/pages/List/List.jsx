@@ -1,11 +1,12 @@
 
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import merchantAPI from '../../api/merchantAPI';
 import './List.css';
 import { NavLink } from 'react-router-dom';
 import { food_list, assets } from '../../assets/assets';
 import OptionGroupsTab from '../OptionGroupsTab/OptionGroupsTab';
+import EditDishModal from '../../components/EditDishModal/EditDishModal';
 
 
 
@@ -17,6 +18,8 @@ const List = () => {
   // State cho mở/đóng từng category
   const [openCategories, setOpenCategories] = useState({});
   const [activeTab, setActiveTab] = useState('foods'); // 'foods' | 'groups'
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedDish, setSelectedDish] = useState(null);
 
   const handleToggleCategory = (cat) => {
     setOpenCategories((prev) => ({
@@ -74,48 +77,65 @@ const List = () => {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [showMenu]);
 
-  useEffect(() => {
-    const fetchMenu = async () => {
-      setLoading(true);
-      setError('');
-      try {
-        // Kiểm tra nếu là tài khoản demo thì lấy menu từ assets
-        const userStr = document.cookie.split('; ').find(row => row.startsWith('user='));
-        let isDemo = false;
-        if (userStr) {
-          try {
-            const userObj = JSON.parse(decodeURIComponent(userStr.split('=')[1]));
-            isDemo = userObj.email === 'demo';
-          } catch {}
-        }
-        if (isDemo) {
-          // Lấy menu mẫu cho demo (restaurantId = '1')
-          const demoMenu = food_list.filter(item => item.restaurantId === '1');
-          setMenu(demoMenu);
-          setLoading(false);
-          return;
-        }
-        // Nếu không phải demo: lấy từ API mới /merchant/menu-items
-        const data = await merchantAPI.getMenuItems();
-        const uiItems = (Array.isArray(data) ? data : []).map((it) => ({
-          _id: it?._id ?? it?.id,
-          name: it?.name,
-          image: it?.imgUrl || it?.image || it?.imgURL,
-          price: it?.basePrice ?? it?.price,
-          description: it?.description,
-          category: it?.categoryName || it?.category,
-          status: (it?.status === 'ACTIVE' || it?.status === 'available') ? 'available' : 'unavailable',
-        }));
-        const sorted = uiItems.sort((a, b) => (String(a.category || '') > String(b.category || '') ? 1 : -1));
-        setMenu(sorted);
-      } catch (e) {
-        setError('Không lấy được thực đơn.');
-      } finally {
-        setLoading(false);
+  const loadMenu = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      if (isDemoUser) {
+        const demoMenu = food_list
+          .filter(item => item.restaurantId === '1')
+          .map((item) => ({ ...item, categoryId: item.categoryId ?? item.category }));
+        setMenu(demoMenu);
+        return;
       }
-    };
-    fetchMenu();
-  }, []);
+      const data = await merchantAPI.getMenuItems();
+      const uiItems = (Array.isArray(data) ? data : []).map((it) => ({
+        _id: it?._id ?? it?.id,
+        name: it?.name,
+        image: it?.imgUrl || it?.image || it?.imgURL,
+        price: it?.basePrice ?? it?.price,
+        description: it?.description,
+        category: it?.categoryName || it?.category,
+        categoryId: it?.categoryId ?? it?.category_id,
+        status: (it?.status === 'ACTIVE' || it?.status === 'available') ? 'available' : 'unavailable',
+      }));
+      const sorted = uiItems.sort((a, b) => (String(a.category || '') > String(b.category || '') ? 1 : -1));
+      setMenu(sorted);
+    } catch (e) {
+      setError('Không lấy được thực đơn.');
+    } finally {
+      setLoading(false);
+    }
+  }, [isDemoUser]);
+
+  useEffect(() => {
+    loadMenu();
+  }, [loadMenu]);
+
+  const handleOpenEditModal = (dish) => {
+    if (!dish) return;
+    setSelectedDish(dish);
+    setIsEditModalOpen(true);
+    setShowMenu(false);
+  };
+
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+    setSelectedDish(null);
+  };
+
+  const handleEditSaved = async (updatedDish) => {
+    if (isDemoUser && updatedDish?._id) {
+      setMenu((prevMenu) => prevMenu.map((item) => (item._id === updatedDish._id ? { ...item, ...updatedDish } : item)));
+      return;
+    }
+    await loadMenu();
+  };
+
+  const handleFabEditClick = () => {
+    if (!menu.length) return;
+    handleOpenEditModal(menu[0]);
+  };
 
   // Gom nhóm món ăn theo category
   const groupedMenu = menu.reduce((acc, item) => {
@@ -155,6 +175,17 @@ const List = () => {
                     <div className="menu-items-row">
                       {isOpen && groupedMenu[cat].map((item) => (
                         <div className="food-card" key={item._id}>
+                          <div className="food-card-status-toggle">
+                            <label className="status-toggle">
+                              <input
+                                type="checkbox"
+                                checked={item.status === 'available'}
+                                onChange={() => isDemoUser ? handleToggleStatusDemo(item) : handleToggleStatus(item)}
+                              />
+                              <span className="status-toggle-slider" />
+                            </label>
+                            <span className="status-toggle-text">{item.status === 'available' ? '' : ''}</span>
+                          </div>
                           <div className="food-card-img-wrap">
                             <img src={item.image} alt={item.name} className="food-card-img" />
                           </div>
@@ -163,10 +194,11 @@ const List = () => {
                             <div className="food-card-price">{item.price?.toLocaleString?.() || item.price}đ</div>
                             <div className="food-card-desc">{item.description}</div>
                             <button
-                              onClick={() => isDemoUser ? handleToggleStatusDemo(item) : handleToggleStatus(item)}
-                              className={`food-card-status ${item.status === 'available' ? 'available' : 'unavailable'}`}
+                              type="button"
+                              className="food-card-manage"
+                              onClick={() => handleOpenEditModal(item)}
                             >
-                              {item.status === 'available' ? 'Còn bán' : 'Hết bán'}
+                              Chỉnh sửa
                             </button>
                             {/* Nút Quản lý đã bỏ theo yêu cầu */}
                           </div>
@@ -199,7 +231,7 @@ const List = () => {
           <div className='add-fab-menu' style={{ zIndex: 120, pointerEvents: 'auto' }}>
             {activeTab === 'foods' ? (
               <>
-                <NavLink className='add-fab-menu-item' to='/add#edit'>Chỉnh sửa món ăn</NavLink>
+                <button type='button' className='add-fab-menu-item' onClick={handleFabEditClick}>Chỉnh sửa món ăn</button>
                 <NavLink className='add-fab-menu-item' to='/add'>Tạo món ăn</NavLink>
               </>
             ) : (
@@ -211,6 +243,13 @@ const List = () => {
           </div>
         )}
       </div>
+      <EditDishModal
+        open={isEditModalOpen && !!selectedDish}
+        dish={selectedDish}
+        onClose={handleCloseEditModal}
+        onSaved={handleEditSaved}
+        isDemoUser={isDemoUser}
+      />
     </div>
   );
 }

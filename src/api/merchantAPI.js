@@ -55,6 +55,85 @@ const merchantAPI = {
 		return res?.data?.data ?? res?.data;
 	},
 
+		updateMenuItem: async (id, payload = {}) => {
+			if (!id) throw new Error("Thiếu mã món ăn để cập nhật");
+			const img = payload?.imageFile || payload?.imgFile || payload?.image;
+			const basePrice = payload?.basePrice ?? payload?.price;
+			const categoryId = payload?.categoryId ?? payload?.category;
+			const status = payload?.status;
+			const name = payload?.name;
+			const description = payload?.description;
+
+			let body;
+			const headers = { Accept: "application/json" };
+			const hasBinary = (
+				(typeof File !== "undefined" && img instanceof File) ||
+				(typeof Blob !== "undefined" && img instanceof Blob)
+			);
+
+			if (hasBinary) {
+				const form = new FormData();
+				form.append("imgFile", img);
+				if (name !== undefined) form.append("name", String(name));
+				if (description !== undefined) form.append("description", String(description));
+				if (categoryId !== undefined && categoryId !== null) form.append("categoryId", String(categoryId));
+				if (basePrice !== undefined && basePrice !== null) form.append("basePrice", String(basePrice));
+				if (status !== undefined) form.append("status", String(status));
+				body = form;
+			} else {
+				body = {};
+				if (name !== undefined) body.name = String(name);
+				if (description !== undefined) body.description = String(description);
+				if (categoryId !== undefined && categoryId !== null) body.categoryId = categoryId;
+				if (basePrice !== undefined && basePrice !== null) body.basePrice = basePrice;
+				if (status !== undefined) body.status = status;
+			}
+
+			try {
+				const res = await apiClient.put(`/merchant/menu-items/${id}`, body, {
+					headers,
+				});
+				return res?.data?.data ?? res?.data ?? true;
+			} catch (error) {
+				throw error;
+			}
+		},
+
+		updateDishStatus: async (id, status) => {
+			if (!id) throw new Error("Thiếu mã món ăn để đổi trạng thái");
+			if (status === undefined || status === null) throw new Error("Thiếu trạng thái mới");
+			// Chuẩn hóa status theo API (chỉ chấp nhận ACTIVE/INACTIVE)
+			let normalized = String(status).trim();
+			const upper = normalized.toUpperCase();
+			if (upper === "AVAILABLE" || upper === "ACTIVE" || status === true) {
+				normalized = "ACTIVE";
+			} else if (upper === "UNAVAILABLE" || upper === "INACTIVE" || status === false) {
+				normalized = "INACTIVE";
+			} else {
+				normalized = upper || "INACTIVE";
+			}
+			const baseBody = { status: normalized };
+			const headers = { Accept: "application/json" };
+			const candidates = [
+				{ method: "patch", path: `/merchant/menu-items/${id}/status`, params: { status: normalized }, body: null },
+				{ method: "patch", path: `/merchant/menu-items/${id}`, body: baseBody },
+				{ method: "put", path: `/merchant/menu-items/${id}`, body: baseBody },
+			];
+			let lastError;
+			for (const candidate of candidates) {
+				try {
+					const config = { headers };
+					if (candidate.params) config.params = candidate.params;
+					const payload = candidate.body ?? baseBody;
+					const res = await apiClient[candidate.method](candidate.path, payload, config);
+					return res?.data?.data ?? res?.data ?? true;
+				} catch (error) {
+					lastError = error;
+				}
+			}
+			throw lastError || new Error("Không đổi được trạng thái món ăn");
+		},
+
 	// Lấy tất cả menu items (để fallback xác nhận sau khi tạo)
 	getMenuItems: async () => {
 		const res = await apiClient.get("/merchant/menu-items");

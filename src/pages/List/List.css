@@ -11,9 +11,9 @@
 }
 
 /* Page-level tabs (Foods / Option Groups) */
-.list-tabs{display:flex;gap:8px;margin:8px 0 14px}
-.list-tab{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer}
-.list-tab.active{background:#eff6ff;border-color:#2563eb}
+.list-tabs { display: flex; gap: 8px; margin: 8px 0 14px; }
+.list-tab { border: 1px solid #cbd5e1; background: #fff; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+.list-tab.active { background: #eff6ff; border-color: #2563eb; }
 
 .menu-category-icon {
   width: 22px;
@@ -22,26 +22,22 @@
   transition: transform 0.25s cubic-bezier(.4,2,.6,1), filter 0.18s;
 }
 .menu-category-block.closed .menu-category-icon {
- 
   filter: grayscale(0.5);
 }
 
-/* Hiệu ứng mở/đóng + layout cho hàng item */
+/* Hi?u ?ng m?/d�ng + layout cho h�ng item */
 .menu-items-row {
-  /* animation */
-  max-height: 2000px; /* đủ lớn để animate khi mở/đóng */
+  max-height: 2000px;
   opacity: 1;
   transform: translateY(0);
   transition: max-height 0.35s cubic-bezier(.4,2,.6,1), opacity 0.25s, transform 0.25s;
   overflow: hidden;
 
-  /* layout */
   width: 100%;
   display: grid;
   gap: 20px;
-  /* Các card có độ rộng cố định hợp lý; còn chỗ sẽ để trống bên phải (bám trái) */
   grid-template-columns: repeat(auto-fill, minmax(260px, 320px));
-  justify-content: start; /* luôn bám trái khi còn khoảng trống */
+  justify-content: start;
   justify-items: stretch;
   align-items: stretch;
   margin-bottom: 28px;
@@ -59,13 +55,13 @@
   border: 1px solid #e2e8f0;
   border-radius: 14px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-  width: 100%; /* theo track của grid */
+  width: 100%;
   min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   padding: 0 0 14px 0;
-  transition: box-shadow 0.18s, transform 0.18s, border-color .18s;
+  transition: box-shadow 0.18s, transform 0.18s, border-color 0.18s;
   position: relative;
   overflow: hidden;
 }
@@ -74,6 +70,66 @@
   box-shadow: 0 6px 18px rgba(0,0,0,0.12);
   transform: translateY(-2px) scale(1.01);
 }
+
+.food-card-status-toggle {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.92);
+  border-radius: 999px;
+  padding: 4px 10px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 6px rgba(15,23,42,0.08);
+}
+
+.status-toggle {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+.status-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.status-toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: #ef4444;
+  border-radius: 999px;
+  transition: background 0.2s ease;
+}
+.status-toggle-slider::before {
+  content: "";
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 4px;
+  top: 3px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(15,23,42,0.2);
+  transition: transform 0.2s ease;
+}
+.status-toggle input:checked + .status-toggle-slider {
+  background: #22c55e;
+}
+.status-toggle input:checked + .status-toggle-slider::before {
+  transform: translateX(20px);
+}
+.status-toggle-text {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+}
+
 .food-card-img-wrap {
   width: 100%;
   height: 140px;
@@ -120,28 +176,27 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.food-card-status {
-  font-size: 0.92em;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 999px;
-  margin-top: 6px;
-  margin-bottom: 2px;
-  display: inline-block;
+.food-card-manage {
+  margin-top: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 10px;
   cursor: pointer;
-  transition: background .15s, color .15s, border-color .15s;
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  font-weight: 600;
+  color: #0f172a;
+  transition: background 0.15s, border-color 0.15s;
 }
-.food-card-status.available {
-  background: #ecfdf5;
-  color: #047857;
-  border: 1px solid #a7f3d0;
+.food-card-manage:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
 }
-.food-card-status.unavailable {
-  background: #fff7ed;
-  color: #c2410c;
-  border: 1px solid #fed7aa;
-}
-.menu-category-title{
+
+.menu-category-title {
   font-size: 1.3em;
   font-weight: 600;
   padding: 8px 14px;
@@ -150,45 +205,33 @@
   display: flex;
   width: 100%;
 }
-.list-grouped-menu{ display:block; width:100%; }
-.food-card-manage {
-  margin-top: 8px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  padding: 6px 10px;
-  cursor: pointer;
-  background: #fff;
-  flex-direction: column;
-  width: 100%;
-}
+.list-grouped-menu { display: block; width: 100%; }
 
 .menu-category-block {
   width: 100%;
   display: flex;
   flex-direction: column;
   transition: background 1s;
-
 }
-/* layout settings for .menu-items-row defined above; extra specificity not needed */
-.menu-category-icon{
-  width:25px;
+.menu-category-block {
+  margin-top: 20px;
+}
+
+.menu-category-icon {
+  width: 25px;
   height: auto;
   background-color: white;
   transition: transform 1s;
   border-radius: 50%;
-  cursor:pointer;
+  cursor: pointer;
   margin-left: 8px;
 }
+
 @media (max-width: 900px) {
   .menu-items-row { gap: 14px; }
   .food-card { width: 100%; max-width: 100%; padding: 0 0 20px 0; }
-  .food-card-img-wrap {
-    height: 110px;
-  }
-  .list-title-wrapper{
-    font-size: 1.5em;
-  }
- 
+  .food-card-img-wrap { height: 110px; }
+  .list-title-wrapper { font-size: 1.5em; }
 }
 
 .add-fab-menu {
@@ -223,13 +266,15 @@
   background: #f6f6f6;
   color: tomato;
 }
-
+.add-fab-menu button.add-fab-menu-item {
+  width: 100%;
+  text-align: left;
+}
 
 @keyframes fadeInFab {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
-
 
 .list-title-wrapper {
   display: block;
@@ -239,24 +284,17 @@
 .list-container {
   padding: 28px 24px;
   max-width: 1200px;
-  margin: 0; /* căn trái theo vùng nội dung, không ép center */
-  flex: 1; /* chiếm hết phần còn lại bên cạnh sidebar */
-
+  margin: 0;
+  flex: 1;
 }
 .list-title {
   font-size: 1.6em;
   margin-bottom: 12px;
   font-weight: 700;
   text-align: left;
-
 }
 
-.menu-category-block{
-  margin-top: 20px;
-}
-
-
-.btn-add-option{
+.btn-add-option {
   position: fixed;
   bottom: 24px;
   right: 24px;
@@ -275,7 +313,7 @@
   justify-content: center;
   transition: background 0.2s, transform 0.2s;
 }
-.btn-add-option:hover{ background: #ff7043; transform: translateY(-1px); }
+.btn-add-option:hover { background: #ff7043; transform: translateY(-1px); }
 
-/* Giữ không gian scrollbar để tránh nhảy layout khi mở/đóng danh mục */
+/* Gi? kh�ng gian scrollbar d? tr�nh nh?y layout khi m?/d�ng danh m?c */
 html { scrollbar-gutter: stable both-edges; }
