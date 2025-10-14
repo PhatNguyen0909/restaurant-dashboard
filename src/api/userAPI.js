@@ -48,6 +48,16 @@ const userAPI ={
       }
     }
     return [];
+  },
+  changePassword: async (payload = {}) => {
+    const currentPassword = payload?.currentPassword ?? payload?.current_password;
+    const newPassword = payload?.newPassword ?? payload?.new_password;
+    if (!currentPassword || !newPassword) {
+      throw new Error('Vui lòng nhập đầy đủ mật khẩu hiện tại và mật khẩu mới');
+    }
+    const body = { currentPassword, newPassword };
+    const res = await apiClient.post('/auth/changePassword', body);
+    return res?.data?.data ?? res?.data;
   }
 };
 export default userAPI;
