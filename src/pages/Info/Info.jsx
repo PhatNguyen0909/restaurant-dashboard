@@ -29,6 +29,9 @@ const Info = () => {
   const [cuisineError, setCuisineError] = useState('');
   const [cuisineDropdownOpen, setCuisineDropdownOpen] = useState(false);
   const cuisineDropdownRef = useRef(null);
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [passwordMessage, setPasswordMessage] = useState({ type: '', text: '' });
+  const [changingPassword, setChangingPassword] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -129,6 +132,52 @@ const Info = () => {
         [normalized]: value,
       },
     }));
+  };
+  const updatePasswordField = (field) => (event) => {
+    const value = event?.target?.value ?? '';
+    setPasswordForm((prev) => ({ ...prev, [field]: value }));
+    setPasswordMessage((prev) => (prev?.text ? { type: '', text: '' } : prev));
+  };
+  const onChangePassword = async () => {
+    const currentPassword = String(passwordForm.currentPassword || '').trim();
+    const newPassword = String(passwordForm.newPassword || '').trim();
+    const confirmPassword = String(passwordForm.confirmPassword || '').trim();
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordMessage({ type: 'error', text: 'Vui lòng nhập đầy đủ các trường bắt buộc.' });
+      return;
+    }
+    if (newPassword.length < 8) {
+      setPasswordMessage({ type: 'error', text: 'Mật khẩu mới phải có ít nhất 8 ký tự.' });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage({ type: 'error', text: 'Mật khẩu mới và xác nhận mật khẩu không khớp.' });
+      return;
+    }
+    if (currentPassword === newPassword) {
+      setPasswordMessage({ type: 'error', text: 'Mật khẩu mới phải khác mật khẩu hiện tại.' });
+      return;
+    }
+
+    setChangingPassword(true);
+    setPasswordMessage({ type: '', text: '' });
+    try {
+      await userAPI.changePassword({ currentPassword, newPassword });
+      setPasswordMessage({ type: 'success', text: 'Đổi mật khẩu thành công.' });
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (e) {
+      const status = e?.response?.status;
+      const body = e?.response?.data;
+      const codeSource = body?.code || body?.errorCode || body?.error_code || body?.message || body?.error;
+      const normalizedCode = typeof codeSource === 'string' ? codeSource.toUpperCase() : '';
+      const defaultMsg = (body && (body.message || body.error || body.detail || body.title)) || e?.message || 'Đổi mật khẩu thất bại';
+      const prettyMsg = normalizedCode.includes('USER_PASSWORD_INVALID_PATTERN')
+        ? 'Mật khẩu phải bao gồm 8-20 kí tự, ít nhất 1 chữ hoa, 1 chữ thường 1 số, 1 kí tự đặc biệt'
+        : defaultMsg;
+      setPasswordMessage({ type: 'error', text: `${prettyMsg}` });
+    } finally {
+      setChangingPassword(false);
+    }
   };
   const onSave = async () => {
     setSaving(true);
@@ -372,6 +421,63 @@ const Info = () => {
             </div>
           </div>
         )}
+      </div>
+      <div className="card password-card">
+        <h2 className="title" style={{marginBottom:12}}>Đổi mật khẩu</h2>
+        <div className="row">
+          <div className="label">Mật khẩu hiện tại</div>
+          <div className="value">
+            <input
+              type="password"
+              autoComplete="current-password"
+              className="input"
+              value={passwordForm.currentPassword}
+              onChange={updatePasswordField('currentPassword')}
+              placeholder="Nhập mật khẩu hiện tại"
+            />
+          </div>
+        </div>
+        <div className="row">
+          <div className="label">Mật khẩu mới</div>
+          <div className="value">
+            <input
+              type="password"
+              autoComplete="new-password"
+              className="input"
+              value={passwordForm.newPassword}
+              onChange={updatePasswordField('newPassword')}
+              placeholder="Ít nhất 8 ký tự"
+            />
+          </div>
+        </div>
+        <div className="row">
+          <div className="label">Xác nhận mật khẩu</div>
+          <div className="value">
+            <input
+              type="password"
+              autoComplete="new-password"
+              className="input"
+              value={passwordForm.confirmPassword}
+              onChange={updatePasswordField('confirmPassword')}
+              placeholder="Nhập lại mật khẩu mới"
+            />
+          </div>
+        </div>
+        {passwordMessage.text && (
+          <div className={`password-feedback ${passwordMessage.type === 'success' ? 'success' : 'error'}`}>
+            {passwordMessage.text}
+          </div>
+        )}
+        <div className="password-actions">
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={onChangePassword}
+            disabled={changingPassword}
+          >
+            {changingPassword ? 'Đang đổi...' : 'Đổi mật khẩu'}
+          </button>
+        </div>
       </div>
     </div>
   );
