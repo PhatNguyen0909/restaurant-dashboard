@@ -27,10 +27,23 @@ const OptionAPI = {
       return res?.data?.data ?? res?.data;
    },
 
-   // Đổi trạng thái option group
+   // Đổi trạng thái option (status query: active|inactive)
    updateStatus: async (optionId, status) => {
-	   const res = await apiClient.patch(`/merchant/options/${optionId}/status`, { status });
-	   return res.data;
+     if (!optionId) throw new Error('optionId is required');
+     let normalized = 'inactive';
+     if (typeof status === 'boolean') {
+       normalized = status ? 'active' : 'inactive';
+     } else {
+       const raw = String(status ?? '').trim().toLowerCase();
+       if (raw === 'active' || raw === '1' || raw === 'enabled' || raw === 'available' || raw === 'true') {
+         normalized = 'active';
+       }
+     }
+     const res = await apiClient.patch(`/merchant/options/${optionId}/status`, null, {
+        params: { status: normalized },
+        headers: { Accept: 'application/json' },
+     });
+     return res?.data?.data ?? res?.data;
    },
 
    // Lấy tất cả option group của merchant theo id
