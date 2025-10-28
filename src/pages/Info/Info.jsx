@@ -17,13 +17,29 @@ const ensureWeeklyOpeningHours = (source = {}) => {
   return result;
 };
 
+const resolveImageUrl = (merchant) => (
+  merchant?.imgUrl
+  || merchant?.image
+  || merchant?.imageUrl
+  || merchant?.logoUrl
+  || merchant?.logo
+  || ''
+);
+
 const Info = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ introduction: '', address: '', openingHours: {}, cuisineTypes: [] });
+  const [form, setForm] = useState({
+    introduction: '',
+    address: '',
+    openingHours: {},
+    cuisineTypes: [],
+    imageFile: null,
+    imagePreview: '',
+  });
   const [cuisineOptions, setCuisineOptions] = useState([]);
   const [cuisineLoading, setCuisineLoading] = useState(false);
   const [cuisineError, setCuisineError] = useState('');
@@ -45,6 +61,8 @@ const Info = () => {
             address: res?.address || '',
             openingHours: ensureWeeklyOpeningHours(res?.openingHours || res?.opening_hours || {}),
             cuisineTypes: Array.isArray(res?.cuisineTypes) ? res.cuisineTypes : (Array.isArray(res?.cuisine_types) ? res.cuisine_types : []),
+            imageFile: null,
+            imagePreview: resolveImageUrl(res),
           };
           setForm(formInit);
         }
@@ -133,6 +151,32 @@ const Info = () => {
       },
     }));
   };
+  const handleImageChange = (event) => {
+    const file = event?.target?.files?.[0];
+    setForm((prev) => {
+      if (prev.imagePreview && prev.imagePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(prev.imagePreview);
+      }
+      if (!file) {
+        return {
+          ...prev,
+          imageFile: null,
+          imagePreview: resolveImageUrl(data),
+        };
+      }
+      const preview = URL.createObjectURL(file);
+      return {
+        ...prev,
+        imageFile: file,
+        imagePreview: preview,
+      };
+    });
+  };
+  useEffect(() => () => {
+    if (form.imagePreview && form.imagePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(form.imagePreview);
+    }
+  }, [form.imagePreview]);
   const updatePasswordField = (field) => (event) => {
     const value = event?.target?.value ?? '';
     setPasswordForm((prev) => ({ ...prev, [field]: value }));
@@ -187,12 +231,14 @@ const Info = () => {
         address: data?.address || '',
         openingHours: ensureWeeklyOpeningHours(data?.openingHours || data?.opening_hours || {}),
         cuisineTypes: Array.isArray(data?.cuisineTypes) ? data.cuisineTypes : (Array.isArray(data?.cuisine_types) ? data.cuisine_types : []),
+        image: resolveImageUrl(data),
       };
       const desired = {
         introduction: form.introduction,
         address: form.address,
         openingHours: ensureWeeklyOpeningHours(form.openingHours),
         cuisineTypes: Array.isArray(form.cuisineTypes) ? form.cuisineTypes : String(form.cuisineTypes || '').split(',').map(s=>s.trim()).filter(Boolean),
+        imageFile: form.imageFile,
       };
 
       const missingDays = WEEK_ORDER.filter((day) => !String(desired.openingHours?.[day] ?? '').trim());
@@ -209,19 +255,78 @@ const Info = () => {
       if (!sameOH) payload.openingHours = desired.openingHours;
       const sameCuisine = JSON.stringify(current.cuisineTypes || []) === JSON.stringify(desired.cuisineTypes || []);
       if (!sameCuisine) payload.cuisineTypes = desired.cuisineTypes;
+      if (desired.imageFile) payload.imgFile = desired.imageFile;
       // Nếu không có field nào thay đổi, bỏ qua gọi API
-      if (!Object.keys(payload).length) { setEditing(false); setSaving(false); return; }
+      const hasDataChanges = Object.keys(payload).some((key) => key !== 'imgFile');
+      if (!hasDataChanges && !payload.imgFile) { setEditing(false); setSaving(false); return; }
 
       const requestBody = {
-        introduction: payload.introduction ?? current.introduction ?? '',
-        address: payload.address ?? current.address ?? '',
-        openingHours: payload.openingHours ?? current.openingHours ?? {},
-        cuisineTypes: payload.cuisineTypes ?? current.cuisineTypes ?? [],
+        introduction: desired.introduction ?? current.introduction ?? '',
+        address: desired.address ?? current.address ?? '',
+        openingHours: desired.openingHours ?? current.openingHours ?? {},
+        cuisineTypes: desired.cuisineTypes?.length ? desired.cuisineTypes : (current.cuisineTypes ?? []),
       };
+      if (payload.imgFile) {
+        requestBody.imgFile = payload.imgFile;
+      } else if (current.image) {
+        requestBody.imgFile = current.image;
+      }
 
       await merchantAPI.updateMyInfo(requestBody);
-      // Cập nhật lại data để reflect UI
-      setData(prev => ({ ...(prev || {}), ...payload }));
+
+      let refreshed = null;
+      try {
+        refreshed = await merchantAPI.getMyMerchant();
+      } catch (fetchErr) {
+        // eslint-disable-next-line no-console
+        console.error('[Info] Không thể load lại merchant sau khi cập nhật:', fetchErr);
+      }
+
+      if (refreshed) {
+        setData(refreshed || null);
+        setForm({
+          introduction: refreshed?.introduction || refreshed?.description || '',
+          address: refreshed?.address || '',
+          openingHours: ensureWeeklyOpeningHours(refreshed?.openingHours || refreshed?.opening_hours || {}),
+          cuisineTypes: Array.isArray(refreshed?.cuisineTypes) ? refreshed.cuisineTypes : (Array.isArray(refreshed?.cuisine_types) ? refreshed.cuisine_types : []),
+          imageFile: null,
+          imagePreview: resolveImageUrl(refreshed),
+        });
+      } else {
+        setData((prev) => {
+          const next = { ...(prev || {}) };
+          if (Object.prototype.hasOwnProperty.call(payload, 'introduction')) {
+            next.introduction = payload.introduction ?? '';
+            next.description = payload.introduction ?? '';
+          }
+          if (Object.prototype.hasOwnProperty.call(payload, 'address')) {
+            next.address = payload.address ?? '';
+          }
+          if (Object.prototype.hasOwnProperty.call(payload, 'openingHours')) {
+            const normalized = ensureWeeklyOpeningHours(payload.openingHours);
+            next.openingHours = normalized;
+            next.opening_hours = normalized;
+          }
+          if (Object.prototype.hasOwnProperty.call(payload, 'cuisineTypes')) {
+            const cuisine = Array.isArray(payload.cuisineTypes) ? payload.cuisineTypes : [];
+            next.cuisineTypes = cuisine;
+            next.cuisine_types = cuisine;
+          }
+          if (payload.imgFile && form.imagePreview) {
+            const preview = form.imagePreview;
+            next.imgUrl = preview;
+            next.image = preview;
+            next.imageUrl = preview;
+            next.logoUrl = preview;
+          }
+          return next;
+        });
+        setForm((prev) => ({
+          ...prev,
+          imageFile: null,
+          imagePreview: payload.imgFile && form.imagePreview ? form.imagePreview : prev.imagePreview,
+        }));
+      }
       setEditing(false);
     } catch (e) {
       const status = e?.response?.status;
@@ -242,6 +347,7 @@ const Info = () => {
   const address = data.address || '';
   const avgRating = data.avgRating ?? data.averageRating ?? data.avg_rating;
   const ratingCount = data.ratingCount ?? data.rating_count ?? 0;
+  const imageUrl = resolveImageUrl(data);
 
   return (
     <div className="info-page">
@@ -253,7 +359,19 @@ const Info = () => {
           ) : (
             <div style={{display:'flex',gap:8}}>
               <button onClick={onSave} disabled={saving} className="btn-primary">{saving ? 'Đang lưu...' : 'Lưu'}</button>
-              <button onClick={()=> { setEditing(false); setForm({ introduction: data?.introduction || data?.description || '', address: data?.address || '', openingHours: ensureWeeklyOpeningHours(data?.openingHours || data?.opening_hours || {}), cuisineTypes: cuisineTypes }); }}>Hủy</button>
+              <button
+                onClick={()=> {
+                  setEditing(false);
+                  setForm({
+                    introduction: data?.introduction || data?.description || '',
+                    address: data?.address || '',
+                    openingHours: ensureWeeklyOpeningHours(data?.openingHours || data?.opening_hours || {}),
+                    cuisineTypes,
+                    imageFile: null,
+                    imagePreview: resolveImageUrl(data),
+                  });
+                }}
+              >Hủy</button>
             </div>
           )}
         </div>
@@ -273,6 +391,33 @@ const Info = () => {
           <div className="row">
             <div className="label">Giới thiệu</div>
             <div className="value"><textarea className="input" rows={4} value={form.introduction} onChange={(e)=> setForm(prev=> ({...prev, introduction: e.target.value}))} /></div>
+          </div>
+        )}
+
+        {!editing && imageUrl && (
+          <div className="row">
+            <div className="label">Ảnh</div>
+            <div className="value">
+              <img src={imageUrl} alt={name} style={{maxWidth:160, borderRadius:8}} />
+            </div>
+          </div>
+        )}
+        {editing && (
+          <div className="row">
+            <div className="label">Ảnh</div>
+            <div className="value">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                disabled={saving}
+              />
+              {form.imagePreview && (
+                <div style={{marginTop:12}}>
+                  <img src={form.imagePreview} alt="Xem trước" style={{maxWidth:160, borderRadius:8}} />
+                </div>
+              )}
+            </div>
           </div>
         )}
 

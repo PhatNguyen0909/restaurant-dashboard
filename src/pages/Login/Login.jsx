@@ -39,15 +39,19 @@ const Login = ({ onLogin }) => {
       // gọi API login thật
       const res = await userAPI.login({ email: email.trim(), password: password.trim() });
       console.log('Login response:', res); // DEBUG
+      console.log('Response keys:', Object.keys(res || {})); // DEBUG
       // Một số backend trả về "tocken" thay vì "token"; thử map linh hoạt
-      const token = res?.token || res?.tocken || res?.accessToken || res?.jwt;
+      const token = res?.token || res?.tocken || res?.accessToken || res?.jwt || res?.access_token;
+      console.log('Extracted token:', token ? `${token.substring(0, 20)}...` : 'NOT FOUND'); // DEBUG
       if (token) {
         setToken(token);
-        const userInfo = res?.user || { email: res?.email || email, fullName: res?.fullName };
+        console.log('Token saved to localStorage'); // DEBUG
+        const userInfo = res?.user || res?.merchant || { email: res?.email || email, fullName: res?.fullName };
         if (userInfo) setCookie('user', JSON.stringify(userInfo));
         onLogin?.(userInfo?.email || email);
       } else {
-        setError('Đăng nhập thất bại!');
+        console.error('No token found in response:', res); // DEBUG
+        setError('Đăng nhập thất bại! Không nhận được token.');
       }
     } catch (err) {
       // Hiển thị thông báo chi tiết nếu có
