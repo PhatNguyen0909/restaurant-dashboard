@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import './OptionGroupsTab.css';
 import OptionAPI from '../../api/Option';
 
@@ -8,6 +8,25 @@ export default function OptionGroupsTab() {
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState(new Set());
   const [counts, setCounts] = useState({}); // { [groupId]: number of linked menu items }
+
+  const toArray = useCallback((input) => {
+    if (!input) return [];
+    if (Array.isArray(input)) return input;
+    if (typeof input !== 'object') return [];
+
+  const keys = ['items', 'data', 'result', 'results', 'rows', 'records', 'options', 'optionValues', 'optionGroups', 'option_groups', 'groups', 'list', 'docs', 'content', 'optionList'];
+    for (const key of keys) {
+      const value = input?.[key];
+      if (Array.isArray(value)) return value;
+    }
+
+    for (const value of Object.values(input)) {
+      const nested = toArray(value);
+      if (nested.length) return nested;
+    }
+
+    return [];
+  }, []);
 
   // Demo mode detection + localStorage keys (align with AddOptionGroup)
   const GROUPS_KEY = 'dashboard_option_groups_v2';
@@ -38,7 +57,7 @@ export default function OptionGroupsTab() {
           setCounts(c);
         } else {
           const data = await OptionAPI.getAll();
-          const list = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : []);
+          const list = toArray(data);
           setGroups(list);
           // Fetch counts in parallel
           const results = await Promise.all(list.map(async (g) => {
@@ -64,6 +83,11 @@ export default function OptionGroupsTab() {
   }, [isDemo]);
 
   const sorted = useMemo(() => groups.slice().sort((a,b)=> String(a.title||a.name||'').localeCompare(String(b.title||b.name||''),'vi')), [groups]);
+
+  const resolveType = (group) => {
+    const raw = (group?.type ?? group?.selectionType ?? '').toString().toLowerCase();
+    return raw.includes('multi') ? 'multi' : 'single';
+  };
 
   const toggle = (id) => setExpanded(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
@@ -192,41 +216,21 @@ export default function OptionGroupsTab() {
             }));
             const totalLinked = counts[gid] ?? 0;
             return (
-              <div key={gid} className={`ogt-card ${open ? 'open' : ''}`}>
-                <button type="button" className="ogt-card-head" onClick={() => toggle(gid)}>
-                  <div className="ogt-card-text">
-                    <div className="ogt-card-title">{title}</div>
-                    <div className="ogt-card-sub">Liên kết với {totalLinked} món</div>
-                  </div>
-                  <span className="ogt-card-arrow" aria-hidden="true" />
-                </button>
+              <div key={gid} className={`ogt-item ${open?'open':''}`}>
+                <div className="ogt-item-head" onClick={()=>toggle(gid)}>
+                  <span className="ogt-caret">{open ? '▾' : '▸'}</span>
+                  <div className="ogt-title">{title}</div>
+                  <div className="ogt-meta">{g.required ? 'Bắt buộc' : 'Tùy chọn'} • {resolveType(g) === 'multi' ? 'Chọn nhiều' : 'Chọn 1'} • {values.length} lựa chọn • {totalLinked} món</div>
+                </div>
                 {open && (
-                  <div className="ogt-card-body">
-                    {!values.length && <div className="ogt-empty">Chưa có option value.</div>}
-                    {values.map((val) => {
-                      const activeFlag = isActiveStatus(val.status);
-                      const trackingKey = makeValueKey(gid, val);
-                      const busy = !!updatingMap[trackingKey];
-                      return (
-                        <div key={val.key} className="ogt-val-row">
-                          <div className="ogt-val-info">
-                            <div className="ogt-val-name">{val.name}</div>
-                            <div className="ogt-val-price">+ {formatCurrency(val.price)}đ</div>
-                          </div>
-                          <div className="ogt-val-toggle">
-                            <label className="ogt-switch">
-                              <input
-                                type="checkbox"
-                                checked={activeFlag}
-                                disabled={busy}
-                                onChange={() => handleToggleOption(group, val)}
-                              />
-                              <span className="ogt-switch-slider" />
-                            </label>
-                          </div>
-                        </div>
-                      );
-                    })}
+                  <div className="ogt-values">
+                    {!values.length && <div className="ogt-hint">Chưa có option value.</div>}
+                    {values.map((v, i) => (
+                      <div key={i} className="ogt-value-row">
+                        <div className="ogt-value-name">{v.label || v.name}</div>
+                        <div className="ogt-value-price">+ {Number(v.priceDelta ?? v.extraPrice ?? v.price ?? 0).toLocaleString('vi-VN')}đ</div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

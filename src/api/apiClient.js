@@ -75,14 +75,39 @@ api.interceptors.request.use((config) => {
 
 // Thêm interceptor để log lỗi (tùy chọn)
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Log response cho update options
+    const url = String(response?.config?.url || '');
+    if (url.includes('/merchant/options/') && (response?.config?.method === 'put' || response?.config?.method === 'PUT')) {
+      console.log('📥 Response Details:', {
+        url: response.config.url,
+        status: response.status,
+        statusText: response.statusText,
+        data: response.data,
+        headers: response.headers
+      });
+    }
+    return response;
+  },
   (error) => {
+    // Log chi tiết lỗi cho update options
+    const url = String(error?.config?.url || '');
+    if (url.includes('/merchant/options/') && (error?.config?.method === 'put' || error?.config?.method === 'PUT')) {
+      console.error('❌ Response Error:', {
+        url: error.config?.url,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message
+      });
+    }
+    
     const status = error?.response?.status;
     const data = error?.response?.data;
-    const url = error?.config?.url;
+    const urlErr = error?.config?.url;
     const method = error?.config?.method;
     // eslint-disable-next-line no-console
-    console.error('API error:', { status, data, message: error?.message, url, method });
+    console.error('API error:', { status, data, message: error?.message, url: urlErr, method });
     return Promise.reject(error);
   }
 );
