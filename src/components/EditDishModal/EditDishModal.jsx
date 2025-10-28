@@ -110,12 +110,19 @@ const EditDishModal = ({
     event.preventDefault();
     if (!dish || isSubmitting) return;
 
+    const sanitizedExistingImage = typeof dish?.image === 'string'
+      ? dish.image.split('?')[0]
+      : dish?.image;
+
     const payload = {
       name: (form.name || '').trim(),
       description: (form.description || '').trim(),
       categoryId: form.categoryId,
       basePrice: Number(form.basePrice),
       imageFile: form.imageFile,
+      isVisible: dish?.status === 'available',
+      forceFormData: true,
+      existingImageUrl: sanitizedExistingImage,
     };
 
     if (!payload.name) {
@@ -132,14 +139,20 @@ const EditDishModal = ({
     }
 
     if (isDemoUser) {
+      const dishId = dish._id ?? dish.id;
       onSaved?.({
-        ...dish,
-        name: payload.name,
-        description: payload.description,
-        category: dish.category,
-        categoryId: payload.categoryId,
-        price: payload.basePrice,
-        image: payload.imageFile ? previewUrl : dish.image,
+        updatedDish: {
+          ...dish,
+          _id: dishId,
+          id: dishId,
+          name: payload.name,
+          description: payload.description,
+          category: dish.category,
+          categoryId: payload.categoryId,
+          price: payload.basePrice,
+          image: payload.imageFile ? previewUrl : dish.image,
+          status: payload.isVisible ? 'available' : 'unavailable',
+        },
       });
       onClose?.();
       return;
@@ -148,9 +161,32 @@ const EditDishModal = ({
     try {
       setStatus('submitting');
       setError('');
-  const result = await merchantAPI.updateMenuItem(dish._id, payload);
+      const dishId = dish._id ?? dish.id;
+      if (!dishId) {
+        setError('Thiếu mã món ăn để cập nhật.');
+        setStatus('idle');
+        return;
+      }
+      const result = await merchantAPI.updateMenuItem(dishId, payload);
       if (!result) throw new Error('Cập nhật thất bại');
-      onSaved?.();
+      const cacheVersion = form.imageFile ? Date.now() : undefined;
+      const updatedDish = {
+        ...dish,
+        _id: dishId,
+        id: dishId,
+        name: payload.name,
+        description: payload.description,
+        category: dish.category,
+        categoryId: payload.categoryId,
+        price: payload.basePrice,
+        image: form.imageFile ? previewUrl : dish.image,
+        status: payload.isVisible ? 'available' : 'unavailable',
+      };
+      const meta = { dishId, updatedDish };
+      if (cacheVersion !== undefined) {
+        meta.cacheVersion = cacheVersion;
+      }
+      onSaved?.(meta);
       onClose?.();
     } catch (err) {
       setError(err?.message || 'Không cập nhật được món ăn');

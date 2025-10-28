@@ -13,7 +13,7 @@ const normalizeCuisineArray = (value) => {
 
 const userAPI ={
   login: async(data) =>{
-    const res =await apiClient.post("/auth/login",data);
+    const res =await apiClient.post("/auth/log-in",data);
     return res.data?.data ?? res.data;
   },
   register: async (data) => {
@@ -33,9 +33,6 @@ const userAPI ={
   getCuisineTypes: async () => {
     const paths = [
       '/cuisine-types',
-      '/merchant/cuisine-types',
-      '/cuisine-type',
-      '/system/cuisine-types',
     ];
     for (const p of paths) {
       try {
