@@ -1,0 +1,413 @@
+.mog-wrap {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.mog-header {
+  margin-bottom: 24px;
+}
+
+.mog-header h2 {
+  margin: 0 0 8px 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.mog-header p {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.mog-hint {
+  padding: 16px;
+  text-align: center;
+  color: #666;
+  font-size: 14px;
+}
+
+.mog-error {
+  padding: 12px 16px;
+  background: #fee;
+  border: 1px solid #fcc;
+  border-radius: 4px;
+  color: #c33;
+  font-size: 14px;
+}
+
+.mog-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 24px;
+}
+
+/* Sidebar */
+.mog-sidebar {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+  height: fit-content;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
+
+.mog-sidebar h3 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.mog-group-item {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  margin-bottom: 8px;
+  text-align: left;
+  transition: all 0.2s;
+}
+
+.mog-group-item:hover {
+  border-color: #ff6b35;
+  background: #fff5f2;
+}
+
+.mog-group-item.active {
+  border-color: #ff6b35;
+  background: #fff5f2;
+}
+
+.mog-group-name {
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.mog-group-meta {
+  font-size: 12px;
+  color: #666;
+}
+
+/* Main */
+.mog-main {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 24px;
+  min-height: 400px;
+}
+
+.mog-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.mog-group-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.mog-info {
+  padding: 12px 16px;
+  background: #f0f7ff;
+  border: 1px solid #cce5ff;
+  border-radius: 6px;
+  margin-bottom: 24px;
+}
+
+.mog-info p {
+  margin: 0;
+  font-size: 14px;
+  color: #0066cc;
+}
+
+/* Values */
+.mog-values {
+  margin-top: 24px;
+}
+
+.mog-values-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.mog-values-header h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.mog-values-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mog-value-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: white;
+}
+
+.mog-value-info {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-right: 16px;
+}
+
+.mog-value-name {
+  font-weight: 500;
+}
+
+.mog-value-price {
+  color: #ff6b35;
+  font-weight: 500;
+}
+
+/* Buttons */
+.mog-btn-primary {
+  padding: 8px 16px;
+  background: #ff6b35;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.mog-btn-primary:hover:not(:disabled) {
+  background: #ff5722;
+}
+
+.mog-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.mog-btn-ghost {
+  padding: 8px 16px;
+  background: white;
+  color: #333;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mog-btn-ghost:hover {
+  border-color: #ff6b35;
+  color: #ff6b35;
+}
+
+.mog-btn-add {
+  padding: 6px 12px;
+  background: white;
+  color: #ff6b35;
+  border: 1px solid #ff6b35;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mog-btn-add:hover {
+  background: #ff6b35;
+  color: white;
+}
+
+.mog-btn-edit {
+  padding: 6px 12px;
+  background: white;
+  color: #0066cc;
+  border: 1px solid #0066cc;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mog-btn-edit:hover {
+  background: #0066cc;
+  color: white;
+}
+
+.mog-btn-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.mog-btn-close:hover {
+  background: #f0f0f0;
+}
+
+/* Modal */
+.mog-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.mog-modal {
+  background: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.mog-modal-lg {
+  max-width: 800px;
+}
+
+.mog-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.mog-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.mog-modal-body {
+  padding: 24px;
+}
+
+.mog-modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #e0e0e0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.mog-field {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 16px;
+}
+
+.mog-field span {
+  font-weight: 500;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+
+.mog-field input {
+  padding: 10px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.mog-field input:focus {
+  outline: none;
+  border-color: #ff6b35;
+}
+
+/* Dish Groups */
+.mog-dish-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mog-cat-block {
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.mog-cat-header {
+  padding: 12px 16px;
+  background: #f8f8f8;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 500;
+}
+
+.mog-cat-header:hover {
+  background: #f0f0f0;
+}
+
+.mog-cat-header img {
+  width: 16px;
+  height: 16px;
+}
+
+.mog-dish-grid {
+  padding: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.mog-dish-item {
+  padding: 10px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.mog-dish-item:hover {
+  border-color: #ff6b35;
+  background: #fff5f2;
+}
+
+.mog-dish-item.active {
+  border-color: #ff6b35;
+  background: #fff5f2;
+}
+
+.mog-dish-item input {
+  cursor: pointer;
+}
+
+.mog-dish-item span {
+  font-size: 14px;
+}

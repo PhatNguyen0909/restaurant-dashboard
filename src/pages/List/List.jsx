@@ -236,8 +236,8 @@ const List = () => {
               </>
             ) : (
               <>
-                <NavLink className='add-fab-menu-item' to='/add-option-group#manage'>Chỉnh sửa nhóm</NavLink>
-                <NavLink className='add-fab-menu-item' to='/add-option-group#create'>Thêm tuỳ chọn</NavLink>
+                <NavLink className='add-fab-menu-item' to='/manage-option-groups'>Chỉnh sửa nhóm</NavLink>
+                <NavLink className='add-fab-menu-item' to='/add-option-group'>Thêm tuỳ chọn</NavLink>
               </>
             )}
           </div>
