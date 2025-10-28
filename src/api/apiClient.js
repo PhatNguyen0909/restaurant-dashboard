@@ -3,13 +3,16 @@ import axios from 'axios';
 import { getToken } from '../utils/tokenUtils';
 
 
-// Luôn dùng backend thật, không dùng proxy hay biến môi trường
-const API_BASE_URL = 'https://cruise-silk-licence-shed.trycloudflare.com/potato-api';
+// Sử dụng proxy /api khi dev để tránh CORS, production thì dùng backend thật
+const isDev = import.meta.env.DEV;
+const API_BASE_URL = isDev 
+  ? '/api'  // Sử dụng proxy trong dev mode
+  : 'https://cruise-silk-licence-shed.trycloudflare.com/potato-api';
 
 // Debug: log baseURL một lần để kiểm tra
 if (typeof window !== 'undefined') {
   // eslint-disable-next-line no-console
-  console.log('[apiClient] baseURL =', API_BASE_URL, 'env.DEV =', import.meta?.env?.DEV);
+  console.log('[apiClient] baseURL =', API_BASE_URL, 'isDev =', isDev);
 }
 
 // Tạo instance axios chung
@@ -18,6 +21,9 @@ export const api = axios.create({
   // Không set Content-Type mặc định để axios tự gán phù hợp (JSON vs FormData)
   withCredentials: false,
   timeout: 15000, // timeout 15s
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
 // Hàm gắn / xóa token (cho login, auth)
@@ -33,27 +39,37 @@ export const attachToken = (token) => {
 api.interceptors.request.use((config) => {
   try {
     const url = String(config?.url || '');
-    const isPublic = /\/auth\/login|\/merchant\/register|\/auth\/refresh/i.test(url);
+    const isPublic = /\/auth\/log-in|\/auth\/login|\/merchant\/register|\/auth\/refresh|\/cuisine-types/i.test(url);
     const t = getToken();
-    config.headers = config.headers || {};
+    console.log('[apiClient] Request:', { url, isPublic, hasToken: !!t, tokenPreview: t ? `${t.substring(0, 20)}...` : 'none' }); // DEBUG
+    const headers = config.headers || {};
+    const setHeader = (key, value) => {
+      if (typeof headers.set === 'function') {
+        headers.set(key, value);
+      } else {
+        headers[key] = value;
+      }
+    };
+    const deleteHeader = (key) => {
+      if (typeof headers.delete === 'function') {
+        headers.delete(key);
+      } else if (headers[key] !== undefined) {
+        delete headers[key];
+      }
+    };
+
     if (!isPublic && t) {
-      config.headers['Authorization'] = `Bearer ${t}`;
+      setHeader('Authorization', `Bearer ${t}`);
+      console.log('[apiClient] Added Authorization header'); // DEBUG
     } else {
-      // Đảm bảo không gửi token cho các endpoint public
-      if (config.headers['Authorization']) delete config.headers['Authorization'];
+      deleteHeader('Authorization');
+      if (isPublic) console.log('[apiClient] Public endpoint, skipping token'); // DEBUG
     }
-    
-    // Log request details cho update options
-    if (url.includes('/merchant/options/') && (config.method === 'put' || config.method === 'PUT')) {
-      console.log('🔍 Request Details:', {
-        url: config.url,
-        method: config.method,
-        headers: config.headers,
-        data: config.data,
-        params: config.params
-      });
-    }
-  } catch {}
+
+    config.headers = headers;
+  } catch (e) {
+    console.error('[apiClient] Interceptor error:', e); // DEBUG
+  }
   return config;
 });
 

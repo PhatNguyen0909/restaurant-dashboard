@@ -304,7 +304,7 @@ const OptionAPI = {
       throw lastError ?? new Error('Failed to assign menu items');
    },
 
-   // Đổi trạng thái option group
+   // Đổi trạng thái option (status query: active|inactive)
    updateStatus: async (optionId, status) => {
       if (!optionId) throw new Error('Option id is required');
       const attempts = [

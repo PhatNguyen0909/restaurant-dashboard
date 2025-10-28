@@ -39,6 +39,8 @@ export default function OptionGroupsTab() {
     return false;
   }, []);
   const safeLoad = (key, fallback) => { try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : (fallback ?? {}); } catch { return (fallback ?? {}); } };
+  const safeSave = (key, data) => { try { localStorage.setItem(key, JSON.stringify(data)); } catch {} };
+  const [updatingMap, setUpdatingMap] = useState({});
 
   useEffect(() => {
     (async () => {
@@ -89,22 +91,129 @@ export default function OptionGroupsTab() {
 
   const toggle = (id) => setExpanded(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
+  const formatCurrency = (n) => {
+    const value = Number(n || 0);
+    try { return value.toLocaleString('vi-VN'); } catch { return String(value); }
+  };
+
+  const isActiveStatus = (status) => {
+    if (status === undefined || status === null) return true;
+    if (typeof status === 'boolean') return status;
+    const raw = String(status).trim().toLowerCase();
+    if (['inactive', 'disabled', 'unavailable', 'false', '0'].includes(raw)) return false;
+    return true;
+  };
+
+  const makeValueKey = (groupId, value) => {
+    const id = value?.id ?? value?.valueId ?? value?.value_id ?? value?.key;
+    if (id !== undefined && id !== null) return String(id);
+    if (value?.index !== undefined) return `${groupId}-${value.index}`;
+    return `${groupId}-${value?.name ?? 'value'}`;
+  };
+
+  const applyStatusToGroup = (groupId, valueMeta, nextStatus) => {
+    setGroups((prev) => prev.map((g) => {
+      const gid = g.id || g._id;
+      if (gid !== groupId) return g;
+      const patchArray = (arr) => arr.map((opt, idx) => {
+        const optId = opt.id || opt._id || opt.valueId || opt.value_id;
+        if ((optId != null && valueMeta.id != null && optId === valueMeta.id)
+          || (valueMeta.id == null && idx === valueMeta.index)) {
+          return { ...opt, status: nextStatus };
+        }
+        return opt;
+      });
+      const next = { ...g };
+      if (Array.isArray(g.options)) next.options = patchArray(g.options);
+      if (Array.isArray(g.optionValues)) next.optionValues = patchArray(g.optionValues);
+      return next;
+    }));
+
+    if (isDemo) {
+      const gMap = safeLoad(GROUPS_KEY, {});
+      const stored = gMap[groupId];
+      if (stored && Array.isArray(stored.options)) {
+        gMap[groupId] = {
+          ...stored,
+          options: stored.options.map((opt, idx) => {
+            const optId = opt.id || opt._id || opt.valueId || opt.value_id;
+            if ((optId != null && valueMeta.id != null && optId === valueMeta.id)
+              || (valueMeta.id == null && idx === valueMeta.index)) {
+              return { ...opt, status: nextStatus };
+            }
+            return opt;
+          }),
+        };
+        safeSave(GROUPS_KEY, gMap);
+      }
+    }
+  };
+
+  const handleToggleOption = async (group, value) => {
+    const groupId = group.id || group._id;
+    const optionId = value.id ?? value.valueId ?? value.value_id;
+    const currentStatus = value.status;
+    const nextStatus = isActiveStatus(currentStatus) ? 'inactive' : 'active';
+    const trackingKey = makeValueKey(groupId, value);
+    if (!isDemo && updatingMap[trackingKey]) return;
+
+    if (!isDemo && (optionId === undefined || optionId === null)) {
+      alert('Không tìm thấy mã option để cập nhật trạng thái.');
+      return;
+    }
+
+    applyStatusToGroup(groupId, value, nextStatus);
+
+    if (isDemo) return;
+
+    setUpdatingMap((prev) => ({ ...prev, [trackingKey]: true }));
+    try {
+      await OptionAPI.updateStatus(optionId, nextStatus);
+    } catch (e) {
+      // revert on failure
+      applyStatusToGroup(groupId, value, currentStatus);
+      console.error('Toggle option status failed', e);
+      alert('Không cập nhật được trạng thái option.');
+    } finally {
+      setUpdatingMap((prev) => {
+        const next = { ...prev };
+        delete next[trackingKey];
+        return next;
+      });
+    }
+  };
+
   return (
     <div className="ogt-wrap">
       <div className="ogt-head">
         <h3>Nhóm tuỳ chọn</h3>
-        <div className="ogt-sub">Sắp xếp theo nhóm. Bấm từng nhóm để xem option values.</div>
+        <div className="ogt-sub">Liên kết và quản lý option values cho từng nhóm.</div>
       </div>
 
       {loading && <div className="ogt-hint">Đang tải...</div>}
       {error && <div className="ogt-error">{error}</div>}
 
-      {!loading && !error && (
-        <div className="ogt-list">
-          {sorted.map(g => {
-            const gid = g.id || g._id; const title = g.title || g.name || '(Không tiêu đề)';
+      {!loading && !error && !sorted.length && (
+        <div className="ogt-hint">Chưa có nhóm tuỳ chọn nào.</div>
+      )}
+
+      {!loading && !error && !!sorted.length && (
+        <div className="ogt-board">
+          {sorted.map((group) => {
+            const gid = group.id || group._id;
+            const title = group.title || group.name || '(Không tiêu đề)';
             const open = expanded.has(gid);
-            const values = Array.isArray(g.options) ? g.options : (Array.isArray(g.optionValues) ? g.optionValues : []);
+            const valuesRaw = Array.isArray(group.options)
+              ? group.options
+              : (Array.isArray(group.optionValues) ? group.optionValues : []);
+            const values = valuesRaw.map((val, idx) => ({
+              key: (val.id || val._id || val.valueId || val.value_id || `${gid}-${idx}`),
+              id: val.id || val._id || val.valueId || val.value_id,
+              index: idx,
+              name: val.label || val.name || val.title || `Lựa chọn ${idx + 1}`,
+              price: val.priceDelta ?? val.extraPrice ?? val.price ?? 0,
+              status: val.status ?? val.state ?? val.isActive ?? val.active,
+            }));
             const totalLinked = counts[gid] ?? 0;
             return (
               <div key={gid} className={`ogt-item ${open?'open':''}`}>

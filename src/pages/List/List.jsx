@@ -1,6 +1,6 @@
 
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import merchantAPI from '../../api/merchantAPI';
 import './List.css';
 import { NavLink } from 'react-router-dom';
@@ -20,6 +20,12 @@ const List = () => {
   const [activeTab, setActiveTab] = useState('foods'); // 'foods' | 'groups'
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedDish, setSelectedDish] = useState(null);
+  const [imageCacheBusters, setImageCacheBusters] = useState({});
+  const imageCacheBustersRef = useRef(imageCacheBusters);
+
+  useEffect(() => {
+    imageCacheBustersRef.current = imageCacheBusters;
+  }, [imageCacheBusters]);
 
   const handleToggleCategory = (cat) => {
     setOpenCategories((prev) => ({
@@ -42,12 +48,12 @@ const List = () => {
 
   // Đổi trạng thái món ăn cho tài khoản thường (API)
   const handleToggleStatus = async (item) => {
-    const newStatus = item.status === 'available' ? 'unavailable' : 'available';
+    const nextIsVisible = item.status !== 'available';
     try {
-      await merchantAPI.updateDishStatus(item._id, newStatus);
+      await merchantAPI.updateDishStatus(item._id, nextIsVisible);
       setMenu((prevMenu) =>
         prevMenu.map((menuItem) =>
-          menuItem._id === item._id ? { ...menuItem, status: newStatus } : menuItem
+          menuItem._id === item._id ? { ...menuItem, status: nextIsVisible ? 'available' : 'unavailable' } : menuItem
         )
       );
     } catch (error) {
@@ -88,20 +94,77 @@ const List = () => {
         setMenu(demoMenu);
         return;
       }
+      console.log('[List] Fetching menu items...'); // DEBUG
       const data = await merchantAPI.getMenuItems();
-      const uiItems = (Array.isArray(data) ? data : []).map((it) => ({
-        _id: it?._id ?? it?.id,
-        name: it?.name,
-        image: it?.imgUrl || it?.image || it?.imgURL,
-        price: it?.basePrice ?? it?.price,
-        description: it?.description,
-        category: it?.categoryName || it?.category,
-        categoryId: it?.categoryId ?? it?.category_id,
-        status: (it?.status === 'ACTIVE' || it?.status === 'available') ? 'available' : 'unavailable',
-      }));
+      console.log('[List] Raw API response:', data); // DEBUG
+      console.log('[List] Is array?', Array.isArray(data)); // DEBUG
+      
+      const uiItems = (Array.isArray(data) ? data : []).map((it) => {
+        const itemId = it?._id ?? it?.id;
+        const categoryName = it?.categoryName || it?.category || 'Chưa phân loại';
+        const rawImageUrl = it?.imageUrl
+          ?? it?.imageURL
+          ?? it?.imgUrl
+          ?? it?.imgURL
+          ?? it?.image
+          ?? it?.image_url
+          ?? it?.thumbnail
+          ?? it?.thumbnailUrl
+          ?? it?.thumbnailURL;
+        const cacheBuster = itemId != null ? imageCacheBustersRef.current[itemId] : undefined;
+        const versionToken = cacheBuster
+          ?? it?.imageVersion
+          ?? it?.imgVersion
+          ?? it?.imageUpdatedAt
+          ?? it?.imageUpdated_at
+          ?? it?.imageUpdatedTime
+          ?? it?.updatedAt
+          ?? it?.updated_at
+          ?? it?.updatedTime
+          ?? it?.lastModified
+          ?? it?.modifiedAt
+          ?? it?.modified_at
+          ?? it?.version;
+        const imageWithVersion = (() => {
+          if (!rawImageUrl) return rawImageUrl;
+          if (versionToken === undefined || versionToken === null || versionToken === '') {
+            return rawImageUrl;
+          }
+          const separator = rawImageUrl.includes('?') ? '&' : '?';
+          return `${rawImageUrl}${separator}v=${encodeURIComponent(versionToken)}`;
+        })();
+        const normalizedStatus = (() => {
+          const rawVisible = it?.isVisible ?? it?.is_visible ?? it?.visible;
+          if (rawVisible === true) return 'available';
+          if (rawVisible === false) return 'unavailable';
+          const raw = it?.status ?? it?.state ?? it?.active;
+          if (raw === true) return 'available';
+          if (raw === false) return 'unavailable';
+          const upper = String(raw ?? '').toUpperCase();
+          if (upper === 'ACTIVE' || upper === 'AVAILABLE' || upper === 'ON') return 'available';
+          if (upper === 'INACTIVE' || upper === 'UNAVAILABLE' || upper === 'OFF') return 'unavailable';
+          return 'available';
+        })();
+        const mapped = {
+          _id: itemId,
+          name: it?.name,
+          image: imageWithVersion,
+          price: it?.basePrice ?? it?.price ?? it?.base_price,
+          description: it?.description,
+          category: categoryName,
+          categoryId: it?.categoryId ?? it?.category_id,
+          status: normalizedStatus,
+        };
+        console.log('[List] Mapped item:', mapped); // DEBUG
+        return mapped;
+      });
+      
+      console.log('[List] Total mapped items:', uiItems.length); // DEBUG
       const sorted = uiItems.sort((a, b) => (String(a.category || '') > String(b.category || '') ? 1 : -1));
+      console.log('[List] Setting menu with', sorted.length, 'items'); // DEBUG
       setMenu(sorted);
     } catch (e) {
+      console.error('[List] Error loading menu:', e); // DEBUG
       setError('Không lấy được thực đơn.');
     } finally {
       setLoading(false);
@@ -124,11 +187,27 @@ const List = () => {
     setSelectedDish(null);
   };
 
-  const handleEditSaved = async (updatedDish) => {
-    if (isDemoUser && updatedDish?._id) {
-      setMenu((prevMenu) => prevMenu.map((item) => (item._id === updatedDish._id ? { ...item, ...updatedDish } : item)));
+  const handleEditSaved = async (info) => {
+    if (isDemoUser) {
+      const updatedDish = info?.updatedDish ?? info;
+      if (updatedDish?._id) {
+        setMenu((prevMenu) => prevMenu.map((item) => (item._id === updatedDish._id ? { ...item, ...updatedDish } : item)));
+      }
       return;
     }
+
+    if (info?.cacheVersion && info?.dishId != null) {
+      setImageCacheBusters((prev) => {
+        const next = { ...prev, [info.dishId]: info.cacheVersion };
+        imageCacheBustersRef.current = next;
+        return next;
+      });
+    }
+
+    if (info?.updatedDish?._id) {
+      setMenu((prevMenu) => prevMenu.map((item) => (item._id === info.updatedDish._id ? { ...item, ...info.updatedDish } : item)));
+    }
+
     await loadMenu();
   };
 
@@ -175,7 +254,7 @@ const List = () => {
                     <div className="menu-items-row">
                       {isOpen && groupedMenu[cat].map((item) => (
                         <div className="food-card" key={item._id}>
-                          <div className="food-card-status-toggle">
+                          <div>
                             <label className="status-toggle">
                               <input
                                 type="checkbox"
