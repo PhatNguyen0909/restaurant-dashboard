@@ -84,6 +84,10 @@ const normalizeOption = (opt) => {
 		?? opt.name
 		?? opt.label
 		?? opt.title
+		?? opt.optionValueName
+		?? opt.OptionValueName
+		?? opt.option_value_name
+		?? opt.optionValue
 		?? opt.optionName
 		?? '';
 	const extra = toNumber(
@@ -132,6 +136,7 @@ const normalizeItem = (item) => {
 		?? item.selectedOptions
 		?? item.option_items
 		?? item.optionValues
+		?? item.OptionValues
 		?? [];
 	const options = Array.isArray(optionsRaw) ? optionsRaw.map(normalizeOption).filter(Boolean) : [];
 	return {
@@ -252,13 +257,6 @@ const Order = () => {
 		const [cancelReason, setCancelReason] = useState('');
 		// Track expanded cards for history tab
 		const [expanded, setExpanded] = useState(() => new Set());
-		const toggleExpand = (id) => {
-			setExpanded(prev => {
-				const next = new Set(prev);
-				if (next.has(id)) next.delete(id); else next.add(id);
-				return next;
-			});
-		};
 		const CANCEL_REASONS = [
 			'Khách đổi ý',
 			'Không liên lạc được với khách',
@@ -271,43 +269,13 @@ const Order = () => {
 			setError('');
 			try {
 				const list = await merchantAPI.getOrders();
-				const normalizedList = normalizeOrders(list);
-				const withDetails = await Promise.all(normalizedList.map(async (order) => {
-					if (!order?.detailId) {
-						return order;
-					}
-					try {
-						const detail = await merchantAPI.getOrderDetail(order.detailId);
-						const detailItems = normalizeItems(extractDetailItems(detail));
-						const normalizedDetail = Array.isArray(detail) ? null : normalizeOrder(detail);
-						return {
-							...order,
-							status: normalizedDetail?.status || order.status,
-							statusRaw: normalizedDetail?.statusRaw ?? order.statusRaw,
-							statusLabel: normalizedDetail?.statusLabel || order.statusLabel,
-							created_at: normalizedDetail?.created_at || order.created_at,
-							full_name: normalizedDetail?.full_name || order.full_name,
-							phone: normalizedDetail?.phone || order.phone,
-							address: normalizedDetail?.address || order.address,
-							total_amount: normalizedDetail?.total_amount || order.total_amount,
-							items: detailItems.length > 0 ? detailItems : (normalizedDetail?.items?.length ? normalizedDetail.items : order.items),
-							payment: (normalizedDetail?.payment && normalizedDetail.payment.method)
-								? normalizedDetail.payment
-								: order.payment,
-							detailError: undefined,
-							detailId: order.detailId,
-						};
-					} catch (detailErr) {
-						console.error('Failed to fetch order detail', detailErr);
-						return {
-							...order,
-							detailError: detailErr?.response?.data?.message
-								|| detailErr?.message
-								|| 'Không thể tải chi tiết đơn hàng',
-						};
-					}
+				const normalizedList = normalizeOrders(list).map(order => ({
+					...order,
+					detailLoaded: !order.detailId || (order.items && order.items.length > 0),
+					detailLoading: false,
+					detailError: undefined,
 				}));
-				setOrders(withDetails);
+				setOrders(normalizedList);
 			} catch (err) {
 				setError(err?.response?.data?.message || err?.message || 'Không thể tải danh sách đơn hàng');
 				setOrders([]);
@@ -320,12 +288,93 @@ const Order = () => {
 			fetchOrders();
 		}, [fetchOrders]);
 
+		const fetchOrderDetail = useCallback(async (orderId, detailId) => {
+			try {
+				const detail = await merchantAPI.getOrderDetail(detailId);
+				const detailItems = normalizeItems(extractDetailItems(detail));
+				const normalizedDetail = Array.isArray(detail) ? null : normalizeOrder(detail);
+				setOrders(prev => prev.map(o => {
+					if (o.id !== orderId) return o;
+					return {
+						...o,
+						status: normalizedDetail?.status || o.status,
+						statusRaw: normalizedDetail?.statusRaw ?? o.statusRaw,
+						statusLabel: normalizedDetail?.statusLabel || o.statusLabel,
+						created_at: normalizedDetail?.created_at || o.created_at,
+						full_name: normalizedDetail?.full_name || o.full_name,
+						phone: normalizedDetail?.phone || o.phone,
+						address: normalizedDetail?.address || o.address,
+						total_amount: normalizedDetail?.total_amount || o.total_amount,
+						items: detailItems.length > 0 ? detailItems : (normalizedDetail?.items?.length ? normalizedDetail.items : o.items),
+						payment: (normalizedDetail?.payment && normalizedDetail.payment.method)
+							? normalizedDetail.payment
+							: o.payment,
+						detailError: undefined,
+						detailLoaded: true,
+						detailLoading: false,
+					};
+				}));
+			} catch (detailErr) {
+				console.error('Failed to fetch order detail', detailErr);
+				setOrders(prev => prev.map(o => {
+					if (o.id !== orderId) return o;
+					return {
+						...o,
+						detailError: detailErr?.response?.data?.message
+							|| detailErr?.message
+							|| 'Không thể tải chi tiết đơn hàng',
+						detailLoaded: false,
+						detailLoading: false,
+					};
+				}));
+			}
+		}, []);
+
 		const filteredOrders = useMemo(() => filterOrders(orders, tab), [orders, tab]);
 
 		// Reset expansion when switching tabs
 		useEffect(() => {
 			setExpanded(new Set());
 		}, [tab]);
+
+		const handleCardClick = useCallback((orderId) => {
+			let isOpening = false;
+			setExpanded(prev => {
+				const next = new Set(prev);
+				if (next.has(orderId)) {
+					next.delete(orderId);
+				} else {
+					next.add(orderId);
+					isOpening = true;
+				}
+				return next;
+			});
+			if (!isOpening) return;
+
+			let detailInfo = null;
+			setOrders(prev => {
+				const target = prev.find(o => o.id === orderId);
+				if (!target || target.detailLoaded || target.detailLoading || !target.detailId) return prev;
+				detailInfo = { orderId: target.id, detailId: target.detailId };
+				return prev.map(o => o.id === orderId ? { ...o, detailLoading: true, detailError: undefined } : o);
+			});
+			if (detailInfo) {
+				fetchOrderDetail(detailInfo.orderId, detailInfo.detailId);
+			}
+		}, [fetchOrderDetail]);
+
+		const handleRetryDetail = useCallback((orderId) => {
+			let detailInfo = null;
+			setOrders(prev => {
+				const target = prev.find(o => o.id === orderId);
+				if (!target || !target.detailId || target.detailLoading) return prev;
+				detailInfo = { orderId: target.id, detailId: target.detailId };
+				return prev.map(o => o.id === orderId ? { ...o, detailLoading: true, detailError: undefined } : o);
+			});
+			if (detailInfo) {
+				fetchOrderDetail(detailInfo.orderId, detailInfo.detailId);
+			}
+		}, [fetchOrderDetail]);
 
 		// Handler chuyển trạng thái đơn sang 'delivering'
 		const handleReady = async (orderId) => {
@@ -398,11 +447,11 @@ const Order = () => {
 							<div
 								className="order-card order-card--clickable"
 								key={order.id}
-								onClick={() => toggleExpand(order.id)}
+								onClick={() => handleCardClick(order.id)}
 								role="button"
 								aria-expanded={isExpanded}
 								tabIndex={0}
-								onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleExpand(order.id); }}
+								onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCardClick(order.id); } }}
 							>
 								{/* Summary row */}
 								<div className="order-card-header">
@@ -420,11 +469,25 @@ const Order = () => {
 										<div><b>Phương thức thanh toán:</b> {order.payment.method} ({order.payment.status})</div>
 										<div><b>Tổng tiền:</b> {formatCurrency(order.total_amount)}</div>
 										<div><b>Món đã đặt:</b></div>
+										{order.detailLoading && (
+											<div style={{ color: '#555', marginBottom: 8 }}>Đang tải chi tiết đơn hàng…</div>
+										)}
 										{order.detailError && (
-											<div style={{ color: '#d9534f', marginBottom: 8 }}>{order.detailError}</div>
+											<div style={{ color: '#d9534f', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+												<span>{order.detailError}</span>
+												{order.detailId && (
+													<button
+														className="order-btn-ready"
+														type="button"
+														onClick={(e) => { e.stopPropagation(); handleRetryDetail(order.id); }}
+													>
+														Thử lại
+													</button>
+												)}
+											</div>
 										)}
 										<ul style={{ margin: 0, paddingLeft: 18 }}>
-											{order.items.length === 0 && <li>Không có món nào</li>}
+											{order.items.length === 0 && !order.detailLoading && <li>Không có món nào</li>}
 											{order.items.map((item, idx) => (
 												<li key={idx}>
 													{item.name} x{item.quantity} ({formatCurrency(item.base_price)})
