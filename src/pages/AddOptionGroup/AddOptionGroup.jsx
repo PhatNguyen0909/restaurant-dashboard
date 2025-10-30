@@ -24,7 +24,7 @@ function safeSave(key, data) {
   try { localStorage.setItem(key, JSON.stringify(data)); } catch {}
 }
 
-export default function AddOptionGroup() {
+export default function AddOptionGroup({ onSuccess }) {
   const isDemo = useMemo(() => {
     const userStr = document.cookie.split('; ').find((row) => row.startsWith('user='));
     if (userStr) {
@@ -87,7 +87,8 @@ export default function AddOptionGroup() {
   const closeAssignModal = useCallback(() => {
     setLinkModal({ open: false, groupId: null, groupName: '' });
     setSelectedMenuIds([]);
-  }, []);
+    if (onSuccess) onSuccess();
+  }, [onSuccess]);
 
   const handleCreateSave = async () => {
     const err = validateGroup(newGroup);
@@ -152,6 +153,7 @@ export default function AddOptionGroup() {
   const handleConfirmLinking = async () => {
     if (!linkModal.groupId) {
       closeAssignModal();
+      if (onSuccess) onSuccess();
       return;
     }
 
@@ -167,6 +169,7 @@ export default function AddOptionGroup() {
       }
       alert('Đã gán nhóm vào các món đã chọn');
       closeAssignModal();
+      if (onSuccess) onSuccess();
     } catch (e) {
       console.error('Linking error', e);
       alert('Lỗi khi gán món vào Option Group');
