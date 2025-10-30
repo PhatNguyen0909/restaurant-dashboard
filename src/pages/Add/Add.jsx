@@ -41,19 +41,19 @@ const Add = () => {
             const formData = new FormData();
             // Backend expects: categoryId, name, description, basePrice, imgFile
             const name = (data.name || '').trim();
-            const description = (data.description || '').trim();
+            const description = (data.description || '').trim(); // Cho phép để trống
             const categoryIdNum = Number(data.category);
             const basePriceNum = Number(data.price);
 
             if (!image) throw new Error('Vui lòng chọn hình ảnh');
             if (!name) throw new Error('Vui lòng nhập tên sản phẩm');
-            if (!description) throw new Error('Vui lòng nhập mô tả');
+            // Bỏ validation description - cho phép trống
             if (!Number.isFinite(categoryIdNum) || categoryIdNum <= 0) throw new Error('CategoryId phải là số dương');
             if (!Number.isFinite(basePriceNum) || basePriceNum <= 0) throw new Error('Giá cơ bản phải là số dương');
 
             formData.append('imgFile', image);
             formData.append('name', name);
-            formData.append('description', description);
+            formData.append('description', description); // Có thể trống
             formData.append('categoryId', String(categoryIdNum));
             formData.append('basePrice', String(basePriceNum));
 
@@ -68,36 +68,14 @@ const Add = () => {
             } catch {}
 
             await merchantAPI.createMenuItem(formData);
-            // small UX: reset and go back to list
+            
+            // Reset form and navigate to list
             setImage(false);
             setData({ name: '', description: '', category: '', price: '' });
             navigate('/list');
         } catch (err) {
-            // Một số backend vẫn tạo thành công nhưng trả 500.
-            // Kiểm tra lại bằng cách GET danh sách để xác nhận.
-            try {
-                const list = await merchantAPI.getMenuItems();
-                const catId = String(Number(data.category));
-                const priceStr = String(Number(data.price));
-                const found = (list || []).find((it) => {
-                    const itName = it?.name || '';
-                    const itCat = String(it?.categoryId ?? it?.category_id ?? '');
-                    const itPrice = String(it?.basePrice ?? it?.base_price ?? it?.price ?? '');
-                    return itName.trim() === (data.name || '').trim()
-                        && itCat === catId
-                        && itPrice === priceStr;
-                });
-                if (found) {
-                    // eslint-disable-next-line no-alert
-                    alert('Tạo thành công (backend trả 500). Chuyển về danh sách.');
-                    setImage(false);
-                    setData({ name: '', description: '', category: '', price: '' });
-                    navigate('/list');
-                    return;
-                }
-            } catch {}
             // eslint-disable-next-line no-alert
-            alert(err?.response?.data?.message || err?.message || 'Create failed');
+            alert(err?.response?.data?.message || err?.message || 'Tạo sản phẩm thất bại');
         } finally {
             setSubmitting(false);
         }

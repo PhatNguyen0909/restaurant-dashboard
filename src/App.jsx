@@ -6,6 +6,7 @@ import Add from './pages/Add/Add';
 import List from './pages/List/List';
 import AddOptionGroup from './pages/AddOptionGroup/AddOptionGroup';
 import ManageOptionGroups from './pages/ManageOptionGroups/ManageOptionGroups';
+import OptionGroupsPage from './pages/OptionGroupsTab/OptionGroupsPage';
 import Navbar from './components/Navbar/Navbar';
 import Sidebar from './components/Sidebar/Sidebar';
 import Login from './pages/Login/Login';
@@ -41,6 +42,7 @@ function App() {
           <Route path='/add-option-group' element={<AddOptionGroup />} />
           <Route path='/manage-option-groups' element={<ManageOptionGroups />} />
           <Route path='/list' element={<List />} />
+          <Route path='/option-groups' element={<OptionGroupsPage />} />
           <Route path='/order' element={<Order />} />
           <Route path='/info' element={<Info />} />
           <Route path='*' element={<Navigate to='/list' replace />} />

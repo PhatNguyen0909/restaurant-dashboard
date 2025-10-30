@@ -1,0 +1,117 @@
+.option-groups-container {
+  padding: 32px;
+  width: 100%;
+  flex: 1;
+  background: #F9FAFB;
+  min-height: 100vh;
+}
+
+.option-groups-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.option-groups-header-left {
+  flex: 1;
+}
+
+.option-groups-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1F2937;
+  margin: 0 0 4px 0;
+}
+
+.option-groups-subtitle {
+  font-size: 15px;
+  color: #6B7280;
+  margin: 0;
+}
+
+.option-groups-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #FF8C00 0%, #FFA500 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(255, 140, 0, 0.3);
+  transition: all 0.2s ease;
+}
+
+.option-groups-add-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(255, 140, 0, 0.4);
+}
+
+/* Form Section */
+.option-groups-form-section {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 2px solid #FF8C00;
+}
+
+.form-section-header h3 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1F2937;
+  margin: 0 0 4px 0;
+}
+
+.form-section-header p {
+  font-size: 14px;
+  color: #6B7280;
+  margin: 0;
+}
+
+/* Content wrapper */
+.option-groups-content {
+  background: white;
+  border-radius: 12px;
+  padding: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1F2937;
+  margin: 0;
+  padding: 20px 24px;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+@media (max-width: 768px) {
+  .option-groups-container {
+    padding: 20px 16px;
+  }
+
+  .option-groups-header {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .option-groups-add-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .option-groups-title {
+    font-size: 24px;
+  }
+
+  .option-groups-form-section,
+  .option-groups-content {
+    padding: 16px;
+  }
+}

@@ -250,9 +250,49 @@ export default function OptionGroupsTab() {
             return (
               <div key={gid} className={`ogt-item ${open?'open':''}`}>
                 <div className="ogt-item-head" onClick={()=>toggle(gid)}>
-                  <span className="ogt-caret">{open ? '▾' : '▸'}</span>
+                  <div className="ogt-caret">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M3 3H13V13H3V3Z" opacity="0.3"/>
+                      <path d="M5 6H11M5 8H11M5 10H9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                  </div>
                   <div className="ogt-title">{title}</div>
-                  <div className="ogt-meta">{group.required ? 'Bắt buộc' : 'Tùy chọn'} • {resolveType(group) === 'multi' ? 'Chọn nhiều' : 'Chọn 1'} • {values.length} lựa chọn • {totalLinked} món</div>
+                  <div className="ogt-meta">
+                    <span className="ogt-meta-badge" style={{ background: group.required ? '#FEE2E2' : '#FFF4E6', color: group.required ? '#DC2626' : '#FF8C00' }}>
+                      {group.required ? 'Bắt buộc' : 'Tùy chọn'}
+                    </span>
+                    <span>{resolveType(group) === 'multi' ? 'Chọn nhiều' : 'Chọn 1'}</span>
+                  </div>
+                  <div style={{ marginLeft: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button 
+                      style={{ 
+                        background: 'none', 
+                        border: 'none', 
+                        cursor: 'pointer',
+                        color: '#6B7280',
+                        padding: '4px'
+                      }}
+                      onClick={(e) => { e.stopPropagation(); /* Edit action */ }}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                        <path d="M10 2L16 8L6 18H2V14L10 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </button>
+                    <button 
+                      style={{ 
+                        background: 'none', 
+                        border: 'none', 
+                        cursor: 'pointer',
+                        color: '#EF4444',
+                        padding: '4px'
+                      }}
+                      onClick={(e) => { e.stopPropagation(); /* Delete action */ }}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                        <path d="M3 4H15M7 4V3C7 2.44772 7.44772 2 8 2H10C10.5523 2 11 2.44772 11 3V4M5 7V14C5 14.5523 5.44772 15 6 15H12C12.5523 15 13 14.5523 13 14V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </button>
+                  </div>
                 </div>
                 {open && (
                   <div className="ogt-values">

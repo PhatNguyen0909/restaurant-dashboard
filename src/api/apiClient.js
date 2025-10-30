@@ -21,9 +21,7 @@ export const api = axios.create({
   // Không set Content-Type mặc định để axios tự gán phù hợp (JSON vs FormData)
   withCredentials: false,
   timeout: 15000, // timeout 15s
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  // Không set Content-Type ở đây để axios tự động detect (JSON hoặc multipart/form-data)
 });
 
 // Hàm gắn / xóa token (cho login, auth)

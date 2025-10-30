@@ -26,8 +26,8 @@ a{
 }
 .app-content{
   display: flex;
-
- 
+  width: 100%;
+  min-height: 100vh;
   animation: fadeIn 0.5s ease-in-out;
 }
 @keyframes fadeIn{
