@@ -295,7 +295,6 @@ export default function AddOptionGroup() {
               <button className="aog-ghost" onClick={closeAssignModal}>Đóng</button>
             </div>
             <p className="aog-hint" style={{ marginTop: 0 }}>Chọn các món để liên kết với nhóm "{linkModal.groupName}"</p>
-            {assignLoading && <div className="aog-hint">Đang tải món đã gán...</div>}
             <div className="aog-modal-list">
               {dishesLoading && <div className="aog-hint">Đang tải danh sách món...</div>}
               {!dishesLoading && !dishes.length && <div className="aog-hint">Chưa có món nào.</div>}

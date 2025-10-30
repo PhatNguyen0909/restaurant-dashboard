@@ -203,6 +203,13 @@ const merchantAPI = {
 		if (Array.isArray(body?.items)) return body.items;
 		return [];
 	},
+	getMenuItemById: async (menuItemId) => {
+		if (!menuItemId) throw new Error("Thiếu mã món ăn");
+		const res = await apiClient.get(`/merchant/menu-items/${menuItemId}`, {
+			headers: buildMerchantRoleHeaders(),
+		});
+		return res?.data?.data ?? res?.data ?? null;
+	},
 	// CATEGORY: CRUD
 	getCategories: async () => {
 		const res = await apiClient.get("/merchant/categories");
