@@ -11,6 +11,8 @@ const Category = () => {
   const [editingName, setEditingName] = useState('');
   const [editingKey, setEditingKey] = useState('');
   const [merchantId, setMerchantId] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const refresh = async () => {
     setLoading(true);
@@ -43,6 +45,7 @@ const Category = () => {
       setCreating(true);
       await merchantAPI.createCategory({ name: newName.trim(), merchantId });
       setNewName('');
+      setShowCreateModal(false);
       await refresh();
     } catch (err) {
       // eslint-disable-next-line no-alert
@@ -92,68 +95,179 @@ const Category = () => {
     })).filter(it => it.id != null);
   }, [items]);
 
+  const filteredCategories = useMemo(() => {
+    if (!searchTerm.trim()) return normalized;
+    const term = searchTerm.toLowerCase();
+    return normalized.filter(item => 
+      item.name?.toLowerCase().includes(term)
+    );
+  }, [normalized, searchTerm]);
+
+  // Random colors for category cards
+  const categoryColors = ['#FF6B35', '#FF8E53', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DFE6E9', '#74B9FF'];
+  const getColorForCategory = (index) => categoryColors[index % categoryColors.length];
+
   return (
     <div className="category-page">
-      <h2>Quản lý Danh mục</h2>
-      <form className="category-create" onSubmit={onCreate}>
+      {/* Page Header */}
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Categories</h1>
+          <p className="page-subtitle">Quản lý danh mục món ăn</p>
+        </div>
+        <button className="btn-create" onClick={() => setShowCreateModal(true)}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 3V13M3 8H13" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+          Tạo danh mục
+        </button>
+      </div>
+
+      {/* Search Bar */}
+      <div className="search-bar">
+        <svg className="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <circle cx="9" cy="9" r="6" stroke="#9CA3AF" strokeWidth="1.5"/>
+          <path d="M14 14L17 17" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
         <input
           type="text"
-          placeholder="Tên danh mục mới"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
+          placeholder="Tìm kiếm danh mục..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="search-input"
         />
-        <button type="submit" disabled={creating || !newName.trim()}>
-          {creating ? 'Đang tạo…' : 'Tạo'}
-        </button>
-      </form>
+      </div>
 
+      {/* Category Grid */}
       {loading ? (
-        <p>Đang tải…</p>
+        <div className="loading-state">Đang tải...</div>
       ) : (
-        <table className="category-table">
-          <thead>
-            <tr>
-              <th>Tên danh mục</th>
-              <th style={{width: 220}}>Thao tác</th>
-            </tr>
-          </thead>
-          <tbody>
-            {normalized.map((item) => (
-              <tr key={item.id}>
-                <td>
+        <div className="category-grid">
+          {filteredCategories.length === 0 ? (
+            <div className="empty-state">
+              {searchTerm ? 'Không tìm thấy danh mục nào' : 'Chưa có danh mục nào'}
+            </div>
+          ) : (
+            filteredCategories.map((item, index) => (
+              <div 
+                key={item.id} 
+                className="category-card"
+                style={{ borderLeftColor: getColorForCategory(index) }}
+              >
+                <div className="category-card-header">
+                  <div className="category-icon" style={{ backgroundColor: getColorForCategory(index) }}>
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                      <path d="M3 3H8V8H3V3Z" stroke="white" strokeWidth="1.5"/>
+                      <path d="M12 3H17V8H12V3Z" stroke="white" strokeWidth="1.5"/>
+                      <path d="M3 12H8V17H3V12Z" stroke="white" strokeWidth="1.5"/>
+                      <path d="M12 12H17V17H12V12Z" stroke="white" strokeWidth="1.5"/>
+                    </svg>
+                  </div>
                   {editingId === item.id ? (
                     <input
+                      className="category-name-edit"
                       value={editingName}
                       onChange={(e) => setEditingName(e.target.value)}
+                      autoFocus
                     />
                   ) : (
-                    item.name
+                    <h3 className="category-name">{item.name}</h3>
                   )}
-                </td>
-                <td className="actions">
-                  {editingId === item.id ? (
-                    <>
-                      <button onClick={onSaveEdit}>Lưu</button>
-                      <button onClick={() => { setEditingId(null); setEditingName(''); setEditingKey(''); }}>Hủy</button>
-                    </>
-                  ) : (
-                    <>
-                      <button onClick={() => startEdit(item)}>Sửa</button>
-                      <button className="danger" onClick={() => onDelete(item.id)}>Xóa</button>
-                    </>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {normalized.length === 0 && (
-              <tr>
-                <td colSpan={2} style={{ textAlign: 'center', color: '#777' }}>
-                  Chưa có danh mục nào
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                </div>
+
+                <div className="category-card-footer">
+                  <span className="category-count">15 items</span>
+                  <div className="category-actions">
+                    {editingId === item.id ? (
+                      <>
+                        <button className="btn-icon btn-save" onClick={onSaveEdit} title="Lưu">
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M3 8L6 11L13 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </button>
+                        <button 
+                          className="btn-icon btn-cancel" 
+                          onClick={() => { setEditingId(null); setEditingName(''); setEditingKey(''); }}
+                          title="Hủy"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M4 4L12 12M12 4L4 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                          </svg>
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button className="btn-icon btn-edit" onClick={() => startEdit(item)} title="Sửa">
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M11 2L14 5M2 14L2 11L10.5 2.5C11.0523 1.94772 11.9477 1.94772 12.5 2.5C13.0523 3.05228 13.0523 3.94772 12.5 4.5L4 13L2 14Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </button>
+                        <button className="btn-icon btn-delete" onClick={() => onDelete(item.id)} title="Xóa">
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M3 4H13M5 4V3C5 2.44772 5.44772 2 6 2H10C10.5523 2 11 2.44772 11 3V4M6 7V11M10 7V11M4 4H12V13C12 13.5523 11.5523 14 11 14H5C4.44772 14 4 13.5523 4 13V4Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                          </svg>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Create Modal */}
+      {showCreateModal && (
+        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <h2 className="modal-title">Tạo danh mục mới</h2>
+                <p className="modal-subtitle">Thêm danh mục mới cho món ăn của nhà hàng</p>
+              </div>
+              <button className="modal-close" onClick={() => setShowCreateModal(false)}>
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                  <path d="M5 5L15 15M15 5L5 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={onCreate} className="modal-form">
+              <div className="form-field">
+                <label className="form-label">Tên danh mục</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Nhập tên danh mục..."
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              <div className="modal-actions">
+                <button 
+                  type="button" 
+                  className="btn-cancel-modal" 
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    setNewName('');
+                  }}
+                >
+                  Hủy
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn-submit" 
+                  disabled={creating || !newName.trim()}
+                >
+                  {creating ? 'Đang tạo...' : 'Tạo'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

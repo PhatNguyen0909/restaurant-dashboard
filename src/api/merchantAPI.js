@@ -54,6 +54,7 @@ const merchantAPI = {
 		const key = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
 		const res = await apiClient.post("/merchant/menu-items", form, {
 			headers: {
+				// Không set Content-Type - để axios tự động set multipart/form-data với boundary
 				Accept: "application/json",
 				"X-Idempotency-Key": key,
 			},

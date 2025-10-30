@@ -172,7 +172,8 @@
 
 /* Opening Hours */
 .opening-hours-list,
-.opening-hours-edit {
+.opening-hours-edit,
+.opening-hours-compact {
   display: flex;
   flex-direction: column;
   gap: 12px;

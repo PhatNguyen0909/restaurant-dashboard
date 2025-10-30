@@ -3,10 +3,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import merchantAPI from '../../api/merchantAPI';
 import './List.css';
-import { NavLink } from 'react-router-dom';
-import { food_list, assets } from '../../assets/assets';
-import OptionGroupsTab from '../OptionGroupsTab/OptionGroupsTab';
+import { food_list } from '../../assets/assets';
 import EditDishModal from '../../components/EditDishModal/EditDishModal';
+import AddDishModal from '../../components/AddDishModal/AddDishModal';
 
 
 
@@ -14,25 +13,15 @@ const List = () => {
   const [menu, setMenu] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showMenu, setShowMenu] = useState(false);
-  // State cho mở/đóng từng category
-  const [openCategories, setOpenCategories] = useState({});
-  const [activeTab, setActiveTab] = useState('foods'); // 'foods' | 'groups'
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedDish, setSelectedDish] = useState(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [imageCacheBusters, setImageCacheBusters] = useState({});
   const imageCacheBustersRef = useRef(imageCacheBusters);
 
   useEffect(() => {
     imageCacheBustersRef.current = imageCacheBusters;
   }, [imageCacheBusters]);
-
-  const handleToggleCategory = (cat) => {
-    setOpenCategories((prev) => ({
-      ...prev,
-      [cat]: !prev[cat]
-    }));
-  };
 
   // Xác định có phải tài khoản demo không
   const isDemoUser = (() => {
@@ -70,18 +59,6 @@ const List = () => {
       )
     );
   };
-  // Close menu when clicking outside
-  useEffect(() => {
-    if (!showMenu) return;
-    function handleClick(e) {
-      const fab = document.getElementById('fab-menu-wrapper');
-      if (fab && !fab.contains(e.target)) {
-        setShowMenu(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [showMenu]);
 
   const loadMenu = useCallback(async () => {
     setLoading(true);
@@ -179,7 +156,6 @@ const List = () => {
     if (!dish) return;
     setSelectedDish(dish);
     setIsEditModalOpen(true);
-    setShowMenu(false);
   };
 
   const handleCloseEditModal = () => {
@@ -211,123 +187,116 @@ const List = () => {
     await loadMenu();
   };
 
-  const handleFabEditClick = () => {
-    if (!menu.length) return;
-    handleOpenEditModal(menu[0]);
+  const handleOpenAddModal = () => {
+    setIsAddModalOpen(true);
   };
 
-  // Gom nhóm món ăn theo category
-  const groupedMenu = menu.reduce((acc, item) => {
-    if (!item.category) return acc;
-    if (!acc[item.category]) acc[item.category] = [];
-    acc[item.category].push(item);
-    return acc;
-  }, {});
+  const handleCloseAddModal = () => {
+    setIsAddModalOpen(false);
+  };
+
+  const handleDishAdded = async () => {
+    await loadMenu();
+  };
 
   return (
     <div className="list-container">
-      <div className="list-title-wrapper">
-        <h2 className="list-title">Danh sách thực đơn</h2>
-      </div>
-      <div className="list-tabs">
-        <button className={`list-tab ${activeTab==='foods'?'active':''}`} onClick={()=> setActiveTab('foods')}>Món ăn</button>
-        <button className={`list-tab ${activeTab==='groups'?'active':''}`} onClick={()=> setActiveTab('groups')}>Tùy chọn nhóm</button>
-      </div>
-      {activeTab === 'foods' && (
-        <>
-          {loading && <div className="list-loading">Đang tải...</div>}
-          {error && <div className="list-error">{error}</div>}
-          {!loading && !error && (
-            <div className="list-grouped-menu">
-              {Object.keys(groupedMenu).map((cat) => {
-                const isOpen = openCategories[cat] !== false; // mặc định mở
-                return (
-                  <div className={`menu-category-block${!isOpen ? ' closed' : ''}`} key={cat}>
-                    <div className="menu-category-title menu-category-toggle" onClick={() => handleToggleCategory(cat)}>
-                      <span className="menu-category-name">{cat}</span>
-                      <img
-                        src={isOpen ? assets.up : assets.down}
-                        alt={isOpen ? 'Thu gọn' : 'Mở rộng'}
-                        className="menu-category-icon"
-                      />
-                    </div>
-                    <div className="menu-items-row">
-                      {isOpen && groupedMenu[cat].map((item) => (
-                        <div className="food-card" key={item._id}>
-                          <div>
-                            <label className="status-toggle">
-                              <input
-                                type="checkbox"
-                                checked={item.status === 'available'}
-                                onChange={() => isDemoUser ? handleToggleStatusDemo(item) : handleToggleStatus(item)}
-                              />
-                              <span className="status-toggle-slider" />
-                            </label>
-                            <span className="status-toggle-text">{item.status === 'available' ? '' : ''}</span>
-                          </div>
-                          <div className="food-card-img-wrap">
-                            <img src={item.image} alt={item.name} className="food-card-img" />
-                          </div>
-                          <div className="food-card-info">
-                            <div className="food-card-name">{item.name}</div>
-                            <div className="food-card-price">{item.price?.toLocaleString?.() || item.price}đ</div>
-                            <div className="food-card-desc">{item.description}</div>
-                            <button
-                              type="button"
-                              className="food-card-manage"
-                              onClick={() => handleOpenEditModal(item)}
-                            >
-                              Chỉnh sửa
-                            </button>
-                            {/* Nút Quản lý đã bỏ theo yêu cầu */}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </>
-      )}
-      {activeTab === 'groups' && (
-        <OptionGroupsTab />
-      )}
-      {/* Floating Add Button with Hover Menu - wrapper ensures menu stays open when moving between button and menu */}
-      <div
-        id="fab-menu-wrapper"
-        style={{ position: 'fixed', zIndex: 120, right: 24, bottom: 24 }}
-      >
-        <div
-          className='btn-add-option'
-          style={{ zIndex: 121 }}
-          onClick={() => setShowMenu((v) => !v)}
-        >
-          +
+      {/* Header Section */}
+      <div className="list-header">
+        <div className="list-header-left">
+          <h2 className="list-title">List Items</h2>
+          <p className="list-subtitle">Quản lý danh sách món ăn và đồ uống</p>
         </div>
-        {showMenu && (
-          <div className='add-fab-menu' style={{ zIndex: 120, pointerEvents: 'auto' }}>
-            {activeTab === 'foods' ? (
-              <>
-                <button type='button' className='add-fab-menu-item' onClick={handleFabEditClick}>Chỉnh sửa món ăn</button>
-                <NavLink className='add-fab-menu-item' to='/add'>Tạo món ăn</NavLink>
-              </>
-            ) : (
-              <>
-                <NavLink className='add-fab-menu-item' to='/manage-option-groups'>Chỉnh sửa nhóm</NavLink>
-                <NavLink className='add-fab-menu-item' to='/add-option-group'>Thêm tuỳ chọn</NavLink>
-              </>
-            )}
-          </div>
-        )}
+        <button className="list-add-btn" onClick={handleOpenAddModal}>
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M10 4V16M4 10H16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+          Thêm món mới
+        </button>
       </div>
+
+      {/* Search and Filter Bar */}
+      <div className="list-search-bar">
+        <div className="list-search-input-wrapper">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="list-search-icon">
+            <path d="M9 17A8 8 0 1 0 9 1a8 8 0 0 0 0 16zM19 19l-4.35-4.35" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <input
+            type="text"
+            className="list-search-input"
+            placeholder="Tìm kiếm món ăn..."
+          />
+        </div>
+        <button className="list-filter-btn">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M5 10h10M2.5 5h15M7.5 15h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+          Lọc
+        </button>
+      </div>
+
+      {/* Content */}
+      {loading && <div className="list-loading">Đang tải...</div>}
+      {error && <div className="list-error">{error}</div>}
+      {!loading && !error && (
+        <div className="list-items-grid">
+          {menu.map((item) => (
+            <div className="list-item-card" key={item._id}>
+              {/* Toggle Status */}
+              <label className="list-item-toggle">
+                <input
+                  type="checkbox"
+                  checked={item.status === 'available'}
+                  onChange={() => isDemoUser ? handleToggleStatusDemo(item) : handleToggleStatus(item)}
+                />
+                <span className="list-item-toggle-slider" />
+              </label>
+
+              {/* Three dots menu */}
+              <div className="list-item-menu">
+                <button className="list-item-menu-btn" onClick={() => handleOpenEditModal(item)}>
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                    <circle cx="10" cy="4" r="1.5"/>
+                    <circle cx="10" cy="10" r="1.5"/>
+                    <circle cx="10" cy="16" r="1.5"/>
+                  </svg>
+                </button>
+              </div>
+
+              {/* Image */}
+              <div className="list-item-image-wrap">
+                <img src={item.image} alt={item.name} className="list-item-image" />
+              </div>
+
+              {/* Info */}
+              <div className="list-item-info">
+                <div className="list-item-category-badge">{item.category}</div>
+                <h3 className="list-item-name">{item.name}</h3>
+                <p className="list-item-price">{item.price?.toLocaleString?.() || item.price}đ</p>
+              </div>
+
+              {/* Edit button */}
+              <button className="list-item-edit-btn" onClick={() => handleOpenEditModal(item)}>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M11.333 2.00004C11.5084 1.82463 11.7163 1.68648 11.9451 1.59347C12.1739 1.50046 12.4191 1.45435 12.6663 1.45435C12.9136 1.45435 13.1588 1.50046 13.3876 1.59347C13.6164 1.68648 13.8243 1.82463 13.9997 2.00004C14.1751 2.17545 14.3132 2.38334 14.4063 2.61213C14.4993 2.84093 14.5454 3.08617 14.5454 3.33337C14.5454 3.58058 14.4993 3.82582 14.4063 4.05461C14.3132 4.28341 14.1751 4.4913 13.9997 4.66671L5.33301 13.3334L1.33301 14.3334L2.33301 10.3334L11.333 2.00004Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Chỉnh sửa
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       <EditDishModal
         open={isEditModalOpen && !!selectedDish}
         dish={selectedDish}
         onClose={handleCloseEditModal}
         onSaved={handleEditSaved}
         isDemoUser={isDemoUser}
+      />
+      <AddDishModal
+        open={isAddModalOpen}
+        onClose={handleCloseAddModal}
+        onDishAdded={handleDishAdded}
       />
     </div>
   );

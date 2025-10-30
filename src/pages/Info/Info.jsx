@@ -462,22 +462,55 @@ const Info = () => {
         </div>
 
         <div className="info-content">
-          <div className="opening-hours-edit">
-            {WEEK_ORDER.map((day) => {
-              const value = form.openingHours?.[day] ?? '';
-              return (
-                <div className="opening-hours-row" key={day}>
-                  <span className="hours-day">{dayNameMap[day]}</span>
-                  <input
-                    className="hours-input"
-                    value={value}
-                    placeholder="08:00 - 22:00"
-                    onChange={(e)=> updateOpeningHour(day, e.target.value)}
-                    onFocus={() => !editing && setEditing(true)}
-                  />
-                </div>
-              );
-            })}
+          <div className="opening-hours-compact">
+            {/* Weekdays (Mon-Fri) */}
+            <div className="opening-hours-row">
+              <span className="hours-day">Thứ 2 - Thứ 6</span>
+              <input
+                className="hours-input"
+                value={form.openingHours?.monday ?? ''}
+                placeholder="08:00 - 22:00"
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Update all weekdays (Mon-Fri) with same value
+                  setForm(prev => ({
+                    ...prev,
+                    openingHours: {
+                      ...ensureWeeklyOpeningHours(prev.openingHours),
+                      monday: value,
+                      tuesday: value,
+                      wednesday: value,
+                      thursday: value,
+                      friday: value,
+                    },
+                  }));
+                }}
+                onFocus={() => !editing && setEditing(true)}
+              />
+            </div>
+
+            {/* Weekend (Sat-Sun) */}
+            <div className="opening-hours-row">
+              <span className="hours-day">Thứ 7 - Chủ nhật</span>
+              <input
+                className="hours-input"
+                value={form.openingHours?.saturday ?? ''}
+                placeholder="07:00 - 23:00"
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Update weekend (Sat-Sun) with same value
+                  setForm(prev => ({
+                    ...prev,
+                    openingHours: {
+                      ...ensureWeeklyOpeningHours(prev.openingHours),
+                      saturday: value,
+                      sunday: value,
+                    },
+                  }));
+                }}
+                onFocus={() => !editing && setEditing(true)}
+              />
+            </div>
           </div>
         </div>
       </div>
