@@ -14,7 +14,7 @@ export default function OptionGroupsTab() {
     if (Array.isArray(input)) return input;
     if (typeof input !== 'object') return [];
 
-  const keys = ['items', 'data', 'result', 'results', 'rows', 'records', 'options', 'optionValues', 'optionGroups', 'option_groups', 'groups', 'list', 'docs', 'content', 'optionList'];
+    const keys = ['items', 'data', 'result', 'results', 'rows', 'records', 'options', 'optionValues', 'optionGroups', 'option_groups', 'groups', 'list', 'docs', 'content', 'optionList'];
     for (const key of keys) {
       const value = input?.[key];
       if (Array.isArray(value)) return value;
@@ -27,6 +27,15 @@ export default function OptionGroupsTab() {
 
     return [];
   }, []);
+
+  const getGroupId = (group) => (
+    group?.id
+    ?? group?._id
+    ?? group?.optionId
+    ?? group?.option_id
+    ?? group?.optionGroupId
+    ?? group?.option_group_id
+  );
 
   // Demo mode detection + localStorage keys (align with AddOptionGroup)
   const GROUPS_KEY = 'dashboard_option_groups_v2';
@@ -53,7 +62,12 @@ export default function OptionGroupsTab() {
           setGroups(list);
           const aMap = safeLoad(ASSIGN_KEY, {});
           const c = {};
-          list.forEach((g) => { const gid = g.id || g._id; c[gid] = Array.isArray(aMap[gid]) ? aMap[gid].length : 0; });
+          list.forEach((g) => {
+            const gid = getGroupId(g);
+            if (gid == null) return;
+            const key = String(gid);
+            c[key] = Array.isArray(aMap[key]) ? aMap[key].length : 0;
+          });
           setCounts(c);
         } else {
           const data = await OptionAPI.getAll();
@@ -61,19 +75,22 @@ export default function OptionGroupsTab() {
           setGroups(list);
           // Fetch counts in parallel
           const results = await Promise.all(list.map(async (g) => {
+            const groupId = getGroupId(g);
+            if (groupId == null) {
+              return { id: undefined, count: 0 };
+            }
             try {
-              const res = await OptionAPI.getMenuItems(g.id || g._id);
-              // Backend returns an object that includes `menuItems: []`
-              const body = res;
-              const arr = Array.isArray(body?.menuItems)
-                ? body.menuItems
-                : (Array.isArray(body) ? body : (Array.isArray(body?.items) ? body.items : (Array.isArray(body?.data) ? body.data : [])));
-              const cnt = Array.isArray(arr) ? arr.length : 0;
-              return { id: g.id || g._id, count: cnt };
-            } catch { return { id: g.id || g._id, count: 0 }; }
+                const res = await OptionAPI.getMenuItems(groupId);
+                const cnt = Array.isArray(res) ? res.length : 0;
+              return { id: String(groupId), count: cnt };
+            } catch {
+              return { id: String(groupId), count: 0 };
+            }
           }));
           const c = {};
-          results.forEach(({id, count}) => { c[id] = count; });
+          results.forEach(({id, count}) => {
+            if (id !== undefined) c[id] = count;
+          });
           setCounts(c);
         }
       } catch (e) {
@@ -91,35 +108,37 @@ export default function OptionGroupsTab() {
 
   const toggle = (id) => setExpanded(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
-  const formatCurrency = (n) => {
-    const value = Number(n || 0);
-    try { return value.toLocaleString('vi-VN'); } catch { return String(value); }
-  };
+  const getValueId = (value) => value?.id ?? value?.valueId ?? value?.value_id ?? value?.key;
 
-  const isActiveStatus = (status) => {
-    if (status === undefined || status === null) return true;
-    if (typeof status === 'boolean') return status;
-    const raw = String(status).trim().toLowerCase();
-    if (['inactive', 'disabled', 'unavailable', 'false', '0'].includes(raw)) return false;
+  const isValueVisible = (value) => {
+    const raw = value?.isVisible ?? value?.visible ?? value?.status ?? value?.state ?? value?.isActive ?? value?.active;
+    if (raw === undefined || raw === null) return true;
+    if (typeof raw === 'boolean') return raw;
+    const token = String(raw).trim().toLowerCase();
+    if (['false', '0', 'inactive', 'hidden', 'disabled'].includes(token)) return false;
+    if (['true', '1', 'active', 'visible', 'enabled'].includes(token)) return true;
     return true;
   };
 
   const makeValueKey = (groupId, value) => {
-    const id = value?.id ?? value?.valueId ?? value?.value_id ?? value?.key;
+    const id = getValueId(value);
     if (id !== undefined && id !== null) return String(id);
     if (value?.index !== undefined) return `${groupId}-${value.index}`;
     return `${groupId}-${value?.name ?? 'value'}`;
   };
 
-  const applyStatusToGroup = (groupId, valueMeta, nextStatus) => {
+  const applyVisibilityToGroup = (groupId, valueMeta, nextVisible) => {
+    const targetId = groupId != null ? String(groupId) : undefined;
+    if (targetId === undefined) return;
     setGroups((prev) => prev.map((g) => {
-      const gid = g.id || g._id;
-      if (gid !== groupId) return g;
+      const gid = getGroupId(g);
+      if (targetId !== undefined && String(gid) !== targetId) return g;
       const patchArray = (arr) => arr.map((opt, idx) => {
-        const optId = opt.id || opt._id || opt.valueId || opt.value_id;
-        if ((optId != null && valueMeta.id != null && optId === valueMeta.id)
+        const optId = getValueId(opt);
+        const sameId = (optId != null && valueMeta.id != null && String(optId) === String(valueMeta.id));
+        if (sameId
           || (valueMeta.id == null && idx === valueMeta.index)) {
-          return { ...opt, status: nextStatus };
+          return { ...opt, isVisible: nextVisible };
         }
         return opt;
       });
@@ -131,18 +150,25 @@ export default function OptionGroupsTab() {
 
     if (isDemo) {
       const gMap = safeLoad(GROUPS_KEY, {});
-      const stored = gMap[groupId];
-      if (stored && Array.isArray(stored.options)) {
-        gMap[groupId] = {
+      const stored = gMap[targetId];
+      if (stored) {
+        const patchArray = (arr) => (
+          Array.isArray(arr)
+            ? arr.map((opt, idx) => {
+                const optId = getValueId(opt);
+                const sameId = (optId != null && valueMeta.id != null && String(optId) === String(valueMeta.id));
+                if (sameId
+                  || (valueMeta.id == null && idx === valueMeta.index)) {
+                  return { ...opt, isVisible: nextVisible };
+                }
+                return opt;
+              })
+            : arr
+        );
+        gMap[targetId] = {
           ...stored,
-          options: stored.options.map((opt, idx) => {
-            const optId = opt.id || opt._id || opt.valueId || opt.value_id;
-            if ((optId != null && valueMeta.id != null && optId === valueMeta.id)
-              || (valueMeta.id == null && idx === valueMeta.index)) {
-              return { ...opt, status: nextStatus };
-            }
-            return opt;
-          }),
+          options: patchArray(stored.options),
+          optionValues: patchArray(stored.optionValues),
         };
         safeSave(GROUPS_KEY, gMap);
       }
@@ -150,11 +176,15 @@ export default function OptionGroupsTab() {
   };
 
   const handleToggleOption = async (group, value) => {
-    const groupId = group.id || group._id;
-    const optionId = value.id ?? value.valueId ?? value.value_id;
-    const currentStatus = value.status;
-    const nextStatus = isActiveStatus(currentStatus) ? 'inactive' : 'active';
-    const trackingKey = makeValueKey(groupId, value);
+  const groupId = getGroupId(group);
+    if (groupId == null) {
+      alert('Không xác định được mã nhóm tuỳ chọn.');
+      return;
+    }
+    const optionId = getValueId(value);
+    const currentVisible = isValueVisible(value);
+    const nextVisible = !currentVisible;
+  const trackingKey = makeValueKey(String(groupId), value);
     if (!isDemo && updatingMap[trackingKey]) return;
 
     if (!isDemo && (optionId === undefined || optionId === null)) {
@@ -162,16 +192,17 @@ export default function OptionGroupsTab() {
       return;
     }
 
-    applyStatusToGroup(groupId, value, nextStatus);
+    const meta = { id: optionId, index: value.index };
+    applyVisibilityToGroup(groupId, meta, nextVisible);
 
     if (isDemo) return;
 
     setUpdatingMap((prev) => ({ ...prev, [trackingKey]: true }));
     try {
-      await OptionAPI.updateStatus(optionId, nextStatus);
+      await OptionAPI.updateStatus(optionId, nextVisible);
     } catch (e) {
       // revert on failure
-      applyStatusToGroup(groupId, value, currentStatus);
+      applyVisibilityToGroup(groupId, meta, currentVisible);
       console.error('Toggle option status failed', e);
       alert('Không cập nhật được trạng thái option.');
     } finally {
@@ -199,20 +230,21 @@ export default function OptionGroupsTab() {
 
       {!loading && !error && !!sorted.length && (
         <div className="ogt-board">
-          {sorted.map((group) => {
-            const gid = group.id || group._id;
+          {sorted.map((group, index) => {
+            const rawGroupId = getGroupId(group);
+            const gid = rawGroupId != null ? String(rawGroupId) : `group-${index}`;
             const title = group.title || group.name || '(Không tiêu đề)';
             const open = expanded.has(gid);
             const valuesRaw = Array.isArray(group.options)
               ? group.options
               : (Array.isArray(group.optionValues) ? group.optionValues : []);
             const values = valuesRaw.map((val, idx) => ({
-              key: (val.id || val._id || val.valueId || val.value_id || `${gid}-${idx}`),
-              id: val.id || val._id || val.valueId || val.value_id,
+              key: getValueId(val) ?? `${gid}-${idx}`,
+              id: getValueId(val),
               index: idx,
               name: val.label || val.name || val.title || `Lựa chọn ${idx + 1}`,
-              price: val.priceDelta ?? val.extraPrice ?? val.price ?? 0,
-              status: val.status ?? val.state ?? val.isActive ?? val.active,
+              price: val.extraPrice ?? val.priceDelta ?? val.price ?? 0,
+              isVisible: isValueVisible(val),
             }));
             const totalLinked = counts[gid] ?? 0;
             return (
@@ -220,17 +252,34 @@ export default function OptionGroupsTab() {
                 <div className="ogt-item-head" onClick={()=>toggle(gid)}>
                   <span className="ogt-caret">{open ? '▾' : '▸'}</span>
                   <div className="ogt-title">{title}</div>
-                  <div className="ogt-meta">{g.required ? 'Bắt buộc' : 'Tùy chọn'} • {resolveType(g) === 'multi' ? 'Chọn nhiều' : 'Chọn 1'} • {values.length} lựa chọn • {totalLinked} món</div>
+                  <div className="ogt-meta">{group.required ? 'Bắt buộc' : 'Tùy chọn'} • {resolveType(group) === 'multi' ? 'Chọn nhiều' : 'Chọn 1'} • {values.length} lựa chọn • {totalLinked} món</div>
                 </div>
                 {open && (
                   <div className="ogt-values">
                     {!values.length && <div className="ogt-hint">Chưa có option value.</div>}
-                    {values.map((v, i) => (
-                      <div key={i} className="ogt-value-row">
-                        <div className="ogt-value-name">{v.label || v.name}</div>
-                        <div className="ogt-value-price">+ {Number(v.priceDelta ?? v.extraPrice ?? v.price ?? 0).toLocaleString('vi-VN')}đ</div>
-                      </div>
-                    ))}
+                    {values.map((v) => {
+                      const toggleKey = makeValueKey(gid, v);
+                      const isUpdating = !isDemo && updatingMap[toggleKey];
+                      return (
+                        <div key={v.key} className="ogt-val-row">
+                          <div className="ogt-val-info">
+                            <div className="ogt-val-name">{v.name}</div>
+                            <div className="ogt-val-price">+ {Number(v.price || 0).toLocaleString('vi-VN')}đ</div>
+                          </div>
+                          <div className="ogt-val-toggle">
+                            <label className="ogt-switch">
+                              <input
+                                type="checkbox"
+                                checked={v.isVisible !== false}
+                                onChange={() => handleToggleOption(group, v)}
+                                disabled={isUpdating || !v.id}
+                              />
+                              <span className="ogt-switch-slider" />
+                            </label>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
