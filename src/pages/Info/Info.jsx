@@ -338,292 +338,177 @@ const Info = () => {
     }
   };
 
-  if (loading) return <div className="info-page"><div className="card"><p>Đang tải...</p></div></div>;
-  if (error) return <div className="info-page"><div className="card error">{error}</div></div>;
-  if (!data) return <div className="info-page"><div className="card">Không có dữ liệu.</div></div>;
+  if (loading) return <div className="info-page"><div className="loading-state">Đang tải...</div></div>;
+  if (error) return <div className="info-page"><div className="error-state">{error}</div></div>;
+  if (!data) return <div className="info-page"><div className="empty-state">Không có dữ liệu.</div></div>;
 
   const name = data.name || data.merchantName || 'Nhà hàng của tôi';
+  const phone = data.phone || data.phoneNumber || '';
+  const email = data.email || '';
   const introduction = data.introduction || data.description || '';
   const address = data.address || '';
-  const avgRating = data.avgRating ?? data.averageRating ?? data.avg_rating;
-  const ratingCount = data.ratingCount ?? data.rating_count ?? 0;
   const imageUrl = resolveImageUrl(data);
+
+  // Map day names to Vietnamese
+  const dayNameMap = {
+    monday: 'Thứ 2',
+    tuesday: 'Thứ 3',
+    wednesday: 'Thứ 4',
+    thursday: 'Thứ 5',
+    friday: 'Thứ 6',
+    saturday: 'Thứ 7',
+    sunday: 'Chủ nhật'
+  };
 
   return (
     <div className="info-page">
-      <div className="card">
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-          <h2 className="title" style={{margin:0}}>Thông tin Nhà Hàng</h2>
-          {!editing ? (
-            <button onClick={()=> setEditing(true)} className="btn-primary">Chỉnh sửa</button>
-          ) : (
-            <div style={{display:'flex',gap:8}}>
-              <button onClick={onSave} disabled={saving} className="btn-primary">{saving ? 'Đang lưu...' : 'Lưu'}</button>
-              <button
-                onClick={()=> {
-                  setEditing(false);
-                  setForm({
-                    introduction: data?.introduction || data?.description || '',
-                    address: data?.address || '',
-                    openingHours: ensureWeeklyOpeningHours(data?.openingHours || data?.opening_hours || {}),
-                    cuisineTypes,
-                    imageFile: null,
-                    imagePreview: resolveImageUrl(data),
-                  });
-                }}
-              >Hủy</button>
-            </div>
-          )}
+      {/* Page Header */}
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Merchant Info</h1>
+          <p className="page-subtitle">Quản lý thông tin nhà hàng của bạn</p>
         </div>
-
-        <div className="row">
-          <div className="label">Tên</div>
-          <div className="value">{name}</div>
-        </div>
-
-        {!editing && introduction && (
-          <div className="row">
-            <div className="label">Giới thiệu</div>
-            <div className="value prewrap">{introduction}</div>
-          </div>
-        )}
-        {editing && (
-          <div className="row">
-            <div className="label">Giới thiệu</div>
-            <div className="value"><textarea className="input" rows={4} value={form.introduction} onChange={(e)=> setForm(prev=> ({...prev, introduction: e.target.value}))} /></div>
-          </div>
-        )}
-
-        {!editing && imageUrl && (
-          <div className="row">
-            <div className="label">Ảnh</div>
-            <div className="value">
-              <img src={imageUrl} alt={name} style={{maxWidth:160, borderRadius:8}} />
-            </div>
-          </div>
-        )}
-        {editing && (
-          <div className="row">
-            <div className="label">Ảnh</div>
-            <div className="value">
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                disabled={saving}
-              />
-              {form.imagePreview && (
-                <div style={{marginTop:12}}>
-                  <img src={form.imagePreview} alt="Xem trước" style={{maxWidth:160, borderRadius:8}} />
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {!editing && address && (
-          <div className="row">
-            <div className="label">Địa chỉ</div>
-            <div className="value">{address}</div>
-          </div>
-        )}
-        {editing && (
-          <div className="row">
-            <div className="label">Địa chỉ</div>
-            <div className="value"><input className="input" value={form.address} onChange={(e)=> setForm(prev=> ({...prev, address: e.target.value}))} /></div>
-          </div>
-        )}
-
-        {!editing && (
-          <div className="row">
-            <div className="label">Đánh giá</div>
-            <div className="value rating">
-              {avgRating != null ? Number(avgRating).toFixed(1) : 'Chưa có'}
-              <span className="muted">{` (${ratingCount} lượt)`}</span>
-            </div>
-          </div>
-        )}
-
-        {!editing && openingHours?.length > 0 && (
-          <div className="row">
-            <div className="label">Giờ mở cửa</div>
-            <div className="value">
-              <div className="hours">
-                {openingHours.map(([day, hours]) => (
-                  <div className="hours-row" key={day}>
-                    <span className="day">{day}</span>
-                    <span className="hours-value">{String(hours)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-        {editing && (
-          <div className="row">
-            <div className="label">Giờ mở cửa</div>
-            <div className="value">
-              <div className="hours">
-                {WEEK_ORDER.map((day) => {
-                  const value = form.openingHours?.[day] ?? '';
-                  const label = day.charAt(0).toUpperCase() + day.slice(1);
-                  return (
-                    <div className="hours-row" key={day}>
-                      <span className="day" style={{textTransform:'capitalize'}}>{label}</span>
-                      <input
-                        className="input"
-                        value={value}
-                        placeholder="Ví dụ: 08:00-21:00"
-                        onChange={(e)=> updateOpeningHour(day, e.target.value)}
-                        style={{minWidth:180}}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="muted" style={{marginTop:8}}>Vui lòng nhập thời gian cho đầy đủ các ngày trong tuần.</div>
-            </div>
-          </div>
-        )}
-
-        {!editing && cuisineTypes?.length > 0 && (
-          <div className="row">
-            <div className="label">Ẩm thực</div>
-            <div className="value">
-              <div className="chips">
-                {cuisineTypes.map((c) => (
-                  <span className="chip" key={String(c)}>{String(c)}</span>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-        {editing && (
-          <div className="row">
-            <div className="label">Ẩm thực</div>
-            <div className="value">
-              <div className="multi-select" ref={cuisineDropdownRef}>
-                <button
-                  type="button"
-                  className="input multi-select-toggle"
-                  onClick={()=> setCuisineDropdownOpen(prev => !prev)}
-                >
-                  {Array.isArray(form.cuisineTypes) && form.cuisineTypes.length
-                    ? form.cuisineTypes.join(', ')
-                    : 'Chọn ẩm thực'}
-                  <span className={`multi-select-caret ${cuisineDropdownOpen ? 'open' : ''}`}>▾</span>
-                </button>
-                {cuisineDropdownOpen && (
-                  <div className="multi-select-dropdown">
-                    {cuisineLoading ? (
-                      <div className="muted">Đang tải ẩm thực...</div>
-                    ) : cuisineError ? (
-                      <div className="error-text">{cuisineError}</div>
-                    ) : cuisineSelectOptions.length ? (
-                      cuisineSelectOptions.map((opt) => {
-                        const checked = Array.isArray(form.cuisineTypes) ? form.cuisineTypes.includes(opt) : false;
-                        return (
-                          <label key={opt} className="multi-select-option">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={(e)=> {
-                                setForm(prev => {
-                                  const current = Array.isArray(prev.cuisineTypes) ? [...prev.cuisineTypes] : [];
-                                  if (e.target.checked) {
-                                    if (!current.includes(opt)) current.push(opt);
-                                  } else {
-                                    const idx = current.indexOf(opt);
-                                    if (idx !== -1) current.splice(idx, 1);
-                                  }
-                                  return { ...prev, cuisineTypes: current };
-                                });
-                              }}
-                            />
-                            <span>{opt}</span>
-                          </label>
-                        );
-                      })
-                    ) : (
-                      <div className="muted">Không có dữ liệu ẩm thực.</div>
-                    )}
-                    <div className="multi-select-actions">
-                      <button type="button" className="btn-outline" onClick={()=> setCuisineDropdownOpen(false)}>Xong</button>
-                      {Array.isArray(form.cuisineTypes) && form.cuisineTypes.length > 0 && (
-                        <button
-                          type="button"
-                          className="btn-danger"
-                          onClick={()=> {
-                            setForm(prev => ({ ...prev, cuisineTypes: [] }));
-                          }}
-                        >Bỏ chọn</button>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="aog-hint">Chọn nhiều mục bằng checkbox.</div>
-            </div>
-          </div>
-        )}
       </div>
-      <div className="card password-card">
-        <h2 className="title" style={{marginBottom:12}}>Đổi mật khẩu</h2>
-        <div className="row">
-          <div className="label">Mật khẩu hiện tại</div>
-          <div className="value">
-            <input
-              type="password"
-              autoComplete="current-password"
-              className="input"
-              value={passwordForm.currentPassword}
-              onChange={updatePasswordField('currentPassword')}
-              placeholder="Nhập mật khẩu hiện tại"
+
+      {/* Merchant Info Card */}
+      <div className="info-card">
+        <div className="card-header">
+          <div className="card-header-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M6 6H18C19.1046 6 20 6.89543 20 8V16C20 17.1046 19.1046 18 18 18H6C4.89543 18 4 17.1046 4 16V8C4 6.89543 4.89543 6 6 6Z" stroke="white" strokeWidth="2"/>
+              <path d="M4 10H20" stroke="white" strokeWidth="2"/>
+              <rect x="7" y="13" width="4" height="2" rx="0.5" fill="white"/>
+            </svg>
+          </div>
+          <div className="card-header-text">
+            <h3>Thông tin cửa hàng</h3>
+            <p>Cập nhật thông tin chung về nhà hàng</p>
+          </div>
+        </div>
+
+        <div className="info-content">
+          {/* Name Field */}
+          <div className="info-field">
+            <label className="field-label">Tên nhà hàng</label>
+            <div className="field-value-box">
+              <span className="field-value">{name}</span>
+            </div>
+          </div>
+
+          {/* Phone and Email Row */}
+          <div className="info-field-row">
+            <div className="info-field">
+              <label className="field-label">Số điện thoại</label>
+              <div className="field-value-box">
+                <svg className="field-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M4 2H6L7 5L5.5 6C6.5 8 8 9.5 10 10.5L11 9L14 10L14 12C14 13.1046 13.1046 14 12 14C6.47715 14 2 9.52285 2 4C2 2.89543 2.89543 2 4 2Z" stroke="#9CA3AF" strokeWidth="1.5"/>
+                </svg>
+                <span className="field-value">{phone || 'Chưa có'}</span>
+              </div>
+            </div>
+
+            <div className="info-field">
+              <label className="field-label">Email</label>
+              <div className="field-value-box">
+                <svg className="field-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M2 4L8 8L14 4M2 4V12C2 12.5523 2.44772 13 3 13H13C13.5523 13 14 12.5523 14 12V4M2 4C2 3.44772 2.44772 3 3 3H13C13.5523 3 14 3.44772 14 4" stroke="#9CA3AF" strokeWidth="1.5"/>
+                </svg>
+                <span className="field-value">{email || 'Chưa có'}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Address Field */}
+          <div className="info-field">
+            <label className="field-label">Địa chỉ</label>
+            <input 
+              type="text" 
+              className="field-input" 
+              value={form.address} 
+              onChange={(e)=> setForm(prev=> ({...prev, address: e.target.value}))}
+              onFocus={() => !editing && setEditing(true)}
+              placeholder="Nhập địa chỉ nhà hàng"
+            />
+          </div>
+
+          {/* Description Field */}
+          <div className="info-field">
+            <label className="field-label">Mô tả</label>
+            <textarea 
+              className="field-textarea" 
+              rows={4}
+              value={form.introduction} 
+              onChange={(e)=> setForm(prev=> ({...prev, introduction: e.target.value}))}
+              onFocus={() => !editing && setEditing(true)}
+              placeholder="Nhập mô tả về nhà hàng"
             />
           </div>
         </div>
-        <div className="row">
-          <div className="label">Mật khẩu mới</div>
-          <div className="value">
-            <input
-              type="password"
-              autoComplete="new-password"
-              className="input"
-              value={passwordForm.newPassword}
-              onChange={updatePasswordField('newPassword')}
-              placeholder="Ít nhất 8 ký tự"
-            />
+      </div>
+
+      {/* Opening Hours Card */}
+      <div className="info-card">
+        <div className="card-header card-header-blue">
+          <div className="card-header-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="9" stroke="white" strokeWidth="2"/>
+              <path d="M12 6V12L16 14" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+          </div>
+          <div className="card-header-text">
+            <h3>Giờ mở cửa</h3>
+            <p>Cài đặt giờ hoạt động của nhà hàng</p>
           </div>
         </div>
-        <div className="row">
-          <div className="label">Xác nhận mật khẩu</div>
-          <div className="value">
-            <input
-              type="password"
-              autoComplete="new-password"
-              className="input"
-              value={passwordForm.confirmPassword}
-              onChange={updatePasswordField('confirmPassword')}
-              placeholder="Nhập lại mật khẩu mới"
-            />
+
+        <div className="info-content">
+          <div className="opening-hours-edit">
+            {WEEK_ORDER.map((day) => {
+              const value = form.openingHours?.[day] ?? '';
+              return (
+                <div className="opening-hours-row" key={day}>
+                  <span className="hours-day">{dayNameMap[day]}</span>
+                  <input
+                    className="hours-input"
+                    value={value}
+                    placeholder="08:00 - 22:00"
+                    onChange={(e)=> updateOpeningHour(day, e.target.value)}
+                    onFocus={() => !editing && setEditing(true)}
+                  />
+                </div>
+              );
+            })}
           </div>
         </div>
-        {passwordMessage.text && (
-          <div className={`password-feedback ${passwordMessage.type === 'success' ? 'success' : 'error'}`}>
-            {passwordMessage.text}
-          </div>
-        )}
-        <div className="password-actions">
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={onChangePassword}
-            disabled={changingPassword}
+      </div>
+
+      {/* Action Buttons */}
+      {editing && (
+        <div className="action-buttons">
+          <button 
+            className="btn-cancel" 
+            onClick={()=> {
+              setEditing(false);
+              setForm({
+                introduction: data?.introduction || data?.description || '',
+                address: data?.address || '',
+                openingHours: ensureWeeklyOpeningHours(data?.openingHours || data?.opening_hours || {}),
+                cuisineTypes,
+                imageFile: null,
+                imagePreview: resolveImageUrl(data),
+              });
+            }}
           >
-            {changingPassword ? 'Đang đổi...' : 'Đổi mật khẩu'}
+            Hủy
+          </button>
+          <button className="btn-save" onClick={onSave} disabled={saving}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M11 2L14 5M2 14L2 11L10.5 2.5C11.0523 1.94772 11.9477 1.94772 12.5 2.5C13.0523 3.05228 13.0523 3.94772 12.5 4.5L4 13L2 14Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
           </button>
         </div>
-      </div>
+      )}
     </div>
   );
 };
