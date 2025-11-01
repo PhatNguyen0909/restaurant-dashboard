@@ -3,18 +3,132 @@ import './Info.css';
 import merchantAPI from '../../api/merchantAPI';
 import userAPI from '../../api/userAPI';
 
-// Weekday ordering helper
+// Weekday helpers and transformers
 const WEEK_ORDER = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
-const normalizeKey = (k = '') => String(k).toLowerCase();
+const JS_DAY_TO_WEEK_ORDER = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+const DAY_LABELS = {
+  monday: 'Thứ 2',
+  tuesday: 'Thứ 3',
+  wednesday: 'Thứ 4',
+  thursday: 'Thứ 5',
+  friday: 'Thứ 6',
+  saturday: 'Thứ 7',
+  sunday: 'Chủ nhật',
+};
+
+const stripDiacritics = (value = '') => {
+  try {
+    return String(value)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+  } catch {
+    return String(value);
+  }
+};
+
+const normalizeWeekdayToken = (value = '') => (
+  stripDiacritics(String(value).toLowerCase()).replace(/[^a-z0-9]/g, '')
+);
+
+const DAY_KEY_ALIASES = {
+  monday: ['monday', 'mon', 'thu2', 'thuhai', 't2'],
+  tuesday: ['tuesday', 'tue', 'thu3', 'thuba', 't3'],
+  wednesday: ['wednesday', 'wed', 'thu4', 'thutu', 't4'],
+  thursday: ['thursday', 'thu5', 'thunam', 't5'],
+  friday: ['friday', 'fri', 'thu6', 'thusau', 't6'],
+  saturday: ['saturday', 'sat', 'thu7', 'thubay', 't7'],
+  sunday: ['sunday', 'sun', 'chunhat', 'chunhat', 'cn'],
+};
+
+const resolveWeekdayKey = (value) => {
+  const normalized = normalizeWeekdayToken(value);
+  if (!normalized) return null;
+  return WEEK_ORDER.find((day) => DAY_KEY_ALIASES[day].includes(normalized)) || null;
+};
+
 const ensureWeeklyOpeningHours = (source = {}) => {
+  const normalized = {};
+  if (source && typeof source === 'object') {
+    Object.entries(source).forEach(([rawKey, rawValue]) => {
+      const dayKey = resolveWeekdayKey(rawKey) || (WEEK_ORDER.includes(rawKey) ? rawKey : null);
+      if (dayKey && normalized[dayKey] === undefined) {
+        normalized[dayKey] = rawValue ?? '';
+      }
+    });
+  }
+
   const result = {};
-  const entries = Object.entries(source || {});
   WEEK_ORDER.forEach((day) => {
-    const matched = entries.find(([key]) => normalizeKey(key) === day);
-    const value = matched ? matched[1] : '';
-    result[day] = value ?? '';
+    const value = normalized[day];
+    result[day] = value == null ? '' : value;
   });
   return result;
+};
+
+const parseTimeToMinutes = (value) => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  const match = trimmed.match(/^(\d{1,2})(?::(\d{2}))?$/);
+  if (!match) return null;
+  let hours = Number(match[1]);
+  let minutes = match[2] ? Number(match[2]) : 0;
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  hours = Math.max(0, Math.min(23, hours));
+  minutes = Math.max(0, Math.min(59, minutes));
+  return (hours * 60) + minutes;
+};
+
+const parseDailyTimeRange = (value) => {
+  if (!value) return null;
+  const timeMatches = value.match(/(\d{1,2}:\d{2})/g);
+  let start; let end;
+  if (timeMatches && timeMatches.length >= 2) {
+    [start, end] = timeMatches;
+  } else {
+    const parts = value.split(/-|–|đến|to/i).map((part) => part.trim()).filter(Boolean);
+    if (parts.length >= 2) {
+      [start, end] = parts;
+    }
+  }
+  if (!start || !end) return null;
+  const startMinutes = parseTimeToMinutes(start);
+  const endMinutes = parseTimeToMinutes(end);
+  if (startMinutes == null || endMinutes == null) return null;
+  return {
+    start: startMinutes,
+    end: endMinutes,
+    overnight: endMinutes <= startMinutes,
+  };
+};
+
+const isTimeWithinRange = (range, now) => {
+  if (!range) return false;
+  const minutes = (now.getHours() * 60) + now.getMinutes();
+  if (!range.overnight) {
+    return minutes >= range.start && minutes <= range.end;
+  }
+  return minutes >= range.start || minutes <= range.end;
+};
+
+const interpretBoolean = (value) => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'open'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'closed', 'close'].includes(normalized)) return false;
+  }
+  return null;
+};
+
+const evaluateScheduleOpenStatus = (openingHoursMap, referenceDate = new Date()) => {
+  if (!openingHoursMap || typeof openingHoursMap !== 'object') return null;
+  const normalized = ensureWeeklyOpeningHours(openingHoursMap);
+  const dayKey = JS_DAY_TO_WEEK_ORDER[referenceDate.getDay()] || 'monday';
+  const value = normalized[dayKey];
+  if (!value) return null;
+  const range = parseDailyTimeRange(value);
+  if (!range) return null;
+  return isTimeWithinRange(range, referenceDate);
 };
 
 const resolveImageUrl = (merchant) => (
@@ -48,6 +162,11 @@ const Info = () => {
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [passwordMessage, setPasswordMessage] = useState({ type: '', text: '' });
   const [changingPassword, setChangingPassword] = useState(false);
+  const [showOpeningHoursModal, setShowOpeningHoursModal] = useState(false);
+  const [manualOpen, setManualOpen] = useState(null);
+  const [openStatusUpdating, setOpenStatusUpdating] = useState(false);
+  const [timeTick, setTimeTick] = useState(() => Date.now());
+  const [autoSyncing, setAutoSyncing] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -99,19 +218,32 @@ const Info = () => {
     return () => { mounted = false; };
   }, []);
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeTick(Date.now());
+    }, 60000);
+    return () => clearInterval(timer);
+  }, []);
+
   const openingHours = useMemo(() => {
     const map = data?.openingHours || data?.opening_hours || {};
-    // Convert entry list and sort by weekday order; keep unknowns last
     const entries = Object.entries(map);
     return entries.sort((a, b) => {
-      const ai = WEEK_ORDER.indexOf(normalizeKey(a[0]));
-      const bi = WEEK_ORDER.indexOf(normalizeKey(b[0]));
-      if (ai === -1 && bi === -1) return a[0].localeCompare(b[0]);
-      if (ai === -1) return 1;
-      if (bi === -1) return -1;
+      const aKey = resolveWeekdayKey(a[0]);
+      const bKey = resolveWeekdayKey(b[0]);
+      const ai = aKey ? WEEK_ORDER.indexOf(aKey) : Number.POSITIVE_INFINITY;
+      const bi = bKey ? WEEK_ORDER.indexOf(bKey) : Number.POSITIVE_INFINITY;
+      if (ai === bi) {
+        return String(a[0]).localeCompare(String(b[0]));
+      }
       return ai - bi;
     });
   }, [data]);
+
+  const scheduledOpen = useMemo(() => {
+    if (!data) return null;
+    return evaluateScheduleOpenStatus(data.openingHours || data.opening_hours, new Date(timeTick));
+  }, [data, timeTick]);
 
   const cuisineTypes = useMemo(() => {
     const raw = data?.cuisineTypes || data?.cuisine_types || [];
@@ -125,6 +257,64 @@ const Info = () => {
     const selected = Array.isArray(form.cuisineTypes) ? form.cuisineTypes : [];
     return Array.from(new Set([...base, ...selected.filter(Boolean)]));
   }, [cuisineOptions, form.cuisineTypes]);
+
+  const serverOpen = interpretBoolean(data?.open);
+  const effectiveOpen = manualOpen != null
+    ? manualOpen
+    : (scheduledOpen != null ? scheduledOpen : (serverOpen ?? false));
+  const openStatusDescription = useMemo(() => {
+    if (manualOpen != null) {
+      return manualOpen
+        ? 'Bạn đã bật trạng thái mở cửa thủ công.'
+        : 'Bạn đã tắt trạng thái mở cửa thủ công.';
+    }
+    if (scheduledOpen != null) {
+      return scheduledOpen
+        ? 'Theo lịch hôm nay, nhà hàng đang hoạt động.'
+        : 'Theo lịch hôm nay, nhà hàng đang tạm đóng.';
+    }
+    if (serverOpen != null) {
+      return serverOpen
+        ? 'Trạng thái mở cửa từ hệ thống là đang hoạt động.'
+        : 'Trạng thái mở cửa từ hệ thống là đang tạm đóng.';
+    }
+    return 'Chưa có lịch hoạt động cho hôm nay.';
+  }, [manualOpen, scheduledOpen, serverOpen]);
+
+  useEffect(() => {
+    if (manualOpen != null) return;
+    if (scheduledOpen == null) return;
+    if (serverOpen == null) return;
+    if (scheduledOpen === serverOpen) return;
+    if (autoSyncing) return;
+
+    let cancelled = false;
+    const nextState = scheduledOpen;
+
+    const syncStatus = async () => {
+      setAutoSyncing(true);
+      try {
+        await merchantAPI.updateMerchantOpenStatus(nextState);
+        if (cancelled) return;
+        setData((prev) => (prev ? { ...prev, open: nextState } : prev));
+        setTimeTick(Date.now());
+      } catch (err) {
+        if (!cancelled) {
+          // eslint-disable-next-line no-console
+          console.error('[Info] Auto sync open status failed:', err);
+        }
+      } finally {
+        if (!cancelled) {
+          setAutoSyncing(false);
+        }
+      }
+    };
+
+    syncStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [manualOpen, scheduledOpen, serverOpen, autoSyncing]);
 
   useEffect(() => {
     if (!cuisineDropdownOpen) return undefined;
@@ -141,8 +331,8 @@ const Info = () => {
   }, [cuisineDropdownOpen]);
 
   const updateOpeningHour = (day, value) => {
-    const key = normalizeKey(day);
-    const normalized = WEEK_ORDER.includes(key) ? key : day;
+    const normalized = resolveWeekdayKey(day) || (WEEK_ORDER.includes(day) ? day : null);
+    if (!normalized) return;
     setForm(prev => ({
       ...prev,
       openingHours: {
@@ -150,6 +340,50 @@ const Info = () => {
         [normalized]: value,
       },
     }));
+  };
+
+  const handleToggleOpenStatus = async () => {
+    if (openStatusUpdating) return;
+    const previousManual = manualOpen;
+    const previousOpenField = data?.open;
+    const currentEffective = manualOpen != null ? manualOpen : (scheduledOpen ?? false);
+    const nextValue = !currentEffective;
+
+    setOpenStatusUpdating(true);
+    setManualOpen(nextValue);
+    setData((prev) => (prev ? { ...prev, open: nextValue } : prev));
+
+    try {
+      await merchantAPI.updateMerchantOpenStatus(nextValue);
+      let refreshed = null;
+      try {
+        refreshed = await merchantAPI.getMyMerchant();
+      } catch (fetchErr) {
+        // eslint-disable-next-line no-console
+        console.error('[Info] Không thể đồng bộ trạng thái mở cửa:', fetchErr);
+      }
+      if (refreshed) {
+        setData(refreshed || null);
+      } else {
+        setManualOpen(nextValue);
+      }
+    } catch (error) {
+      alert(error?.message || 'Không thể cập nhật trạng thái mở cửa.');
+      setManualOpen(previousManual);
+      setData((prev) => {
+        if (!prev) return prev;
+        const next = { ...prev };
+        const rollbackOpen = previousManual != null ? previousManual : previousOpenField;
+        if (rollbackOpen === undefined) {
+          delete next.open;
+        } else {
+          next.open = rollbackOpen;
+        }
+        return next;
+      });
+    } finally {
+      setOpenStatusUpdating(false);
+    }
   };
   const handleImageChange = (event) => {
     const file = event?.target?.files?.[0];
@@ -248,31 +482,62 @@ const Info = () => {
         return;
       }
 
-      const payload = {};
-      if ((current.introduction || '') !== (desired.introduction || '')) payload.introduction = desired.introduction;
-      if ((current.address || '') !== (desired.address || '')) payload.address = desired.address;
-      const sameOH = JSON.stringify(current.openingHours || {}) === JSON.stringify(desired.openingHours || {});
-      if (!sameOH) payload.openingHours = desired.openingHours;
-      const sameCuisine = JSON.stringify(current.cuisineTypes || []) === JSON.stringify(desired.cuisineTypes || []);
-      if (!sameCuisine) payload.cuisineTypes = desired.cuisineTypes;
-      if (desired.imageFile) payload.imgFile = desired.imageFile;
-      // Nếu không có field nào thay đổi, bỏ qua gọi API
-      const hasDataChanges = Object.keys(payload).some((key) => key !== 'imgFile');
-      if (!hasDataChanges && !payload.imgFile) { setEditing(false); setSaving(false); return; }
+      // Chuẩn bị FormData theo đúng API format
+      const formData = new FormData();
+      
+      // Convert opening hours về format backend mong muốn (Thứ 2, Thứ 3, ...)
+      const backendOpeningHours = {};
+      WEEK_ORDER.forEach((day) => {
+        const rawValue = (desired.openingHours ?? {})[day];
+        const value = String(rawValue ?? '').trim();
+        if (!value) return;
+        const label = DAY_LABELS[day] || day;
+        backendOpeningHours[label] = value;
+      });
 
-      const requestBody = {
+      const scheduleOpenAfterSave = evaluateScheduleOpenStatus(backendOpeningHours, new Date());
+
+      // Tạo data object
+      const dataObject = {
         introduction: desired.introduction ?? current.introduction ?? '',
         address: desired.address ?? current.address ?? '',
-        openingHours: desired.openingHours ?? current.openingHours ?? {},
+        openingHours: backendOpeningHours,
         cuisineTypes: desired.cuisineTypes?.length ? desired.cuisineTypes : (current.cuisineTypes ?? []),
       };
-      if (payload.imgFile) {
-        requestBody.imgFile = payload.imgFile;
-      } else if (current.image) {
-        requestBody.imgFile = current.image;
+      
+      // Append data as JSON blob để backend parse chính xác
+      formData.append('data', new Blob([JSON.stringify(dataObject)], { type: 'application/json' }));
+      
+      // Append image file nếu có
+      if (desired.imageFile) {
+        formData.append('img', desired.imageFile);
+      } else {
+        const existingImageUrl = current.image || resolveImageUrl(data) || form.imagePreview || '';
+        const sanitizedUrl = typeof existingImageUrl === 'string' ? existingImageUrl.trim() : '';
+        if (sanitizedUrl) {
+          try {
+            const response = await fetch(sanitizedUrl, { mode: 'cors' });
+            if (response.ok) {
+              const blob = await response.blob();
+              const fallbackName = sanitizedUrl.split('/').pop()?.split('?')[0] || 'merchant-image';
+              formData.append('img', blob, fallbackName);
+            }
+          } catch (fetchErr) {
+            // eslint-disable-next-line no-console
+            console.error('[Info] Không thể lấy ảnh hiện tại để gửi lại:', fetchErr);
+          }
+        }
       }
 
-      await merchantAPI.updateMyInfo(requestBody);
+      if (!formData.has('img')) {
+        alert('Không thể tải ảnh hiện tại. Vui lòng chọn ảnh mới rồi lưu lại.');
+        return;
+      }
+
+      const updateResult = await merchantAPI.updateMyInfo(formData);
+      
+      // Hiển thị thông báo thành công
+      alert('Cập nhật thông tin nhà hàng thành công!');
 
       let refreshed = null;
       try {
@@ -292,6 +557,7 @@ const Info = () => {
           imageFile: null,
           imagePreview: resolveImageUrl(refreshed),
         });
+        setTimeTick(Date.now());
       } else {
         setData((prev) => {
           const next = { ...(prev || {}) };
@@ -327,6 +593,24 @@ const Info = () => {
           imagePreview: payload.imgFile && form.imagePreview ? form.imagePreview : prev.imagePreview,
         }));
       }
+      setTimeTick(Date.now());
+
+      if (manualOpen == null && scheduleOpenAfterSave != null) {
+        const latestServerOpen = interpretBoolean(refreshed?.open ?? data?.open);
+        if (latestServerOpen == null || latestServerOpen !== scheduleOpenAfterSave) {
+          try {
+            setAutoSyncing(true);
+            await merchantAPI.updateMerchantOpenStatus(scheduleOpenAfterSave);
+            setData((prev) => (prev ? { ...prev, open: scheduleOpenAfterSave } : prev));
+          } catch (syncErr) {
+            // eslint-disable-next-line no-console
+            console.error('[Info] Không thể đồng bộ trạng thái mở cửa sau khi lưu:', syncErr);
+          } finally {
+            setAutoSyncing(false);
+            setTimeTick(Date.now());
+          }
+        }
+      }
       setEditing(false);
     } catch (e) {
       const status = e?.response?.status;
@@ -343,22 +627,18 @@ const Info = () => {
   if (!data) return <div className="info-page"><div className="empty-state">Không có dữ liệu.</div></div>;
 
   const name = data.name || data.merchantName || 'Nhà hàng của tôi';
-  const phone = data.phone || data.phoneNumber || '';
-  const email = data.email || '';
   const introduction = data.introduction || data.description || '';
   const address = data.address || '';
+  const avgRating = data.avgRating || 0;
+  const ratingCount = data.ratingCount || 0;
+  const merchantCuisineTypes = data.cuisineTypes || [];
   const imageUrl = resolveImageUrl(data);
-
-  // Map day names to Vietnamese
-  const dayNameMap = {
-    monday: 'Thứ 2',
-    tuesday: 'Thứ 3',
-    wednesday: 'Thứ 4',
-    thursday: 'Thứ 5',
-    friday: 'Thứ 6',
-    saturday: 'Thứ 7',
-    sunday: 'Chủ nhật'
-  };
+  const openStatusTitle = effectiveOpen ? 'Nhà hàng đang mở cửa' : 'Nhà hàng đang đóng cửa';
+  const syncInProgress = openStatusUpdating || autoSyncing;
+  const openStatusMessage = syncInProgress
+    ? (openStatusUpdating ? 'Đang cập nhật trạng thái...' : 'Đang đồng bộ trạng thái theo lịch...')
+    : openStatusDescription;
+  const openToggleLabel = effectiveOpen ? 'Đang mở' : 'Đang đóng';
 
   return (
     <div className="info-page">
@@ -387,33 +667,115 @@ const Info = () => {
         </div>
 
         <div className="info-content">
-          {/* Name Field */}
-          <div className="info-field">
-            <label className="field-label">Tên nhà hàng</label>
-            <div className="field-value-box">
-              <span className="field-value">{name}</span>
+          <div className={`merchant-status-banner ${effectiveOpen ? 'open' : 'closed'}`}>
+            <div className="merchant-status-text">
+              <h4>{openStatusTitle}</h4>
+              <p>{openStatusMessage}</p>
             </div>
+            <label className={`merchant-status-toggle ${effectiveOpen ? 'active' : ''} ${syncInProgress ? 'disabled' : ''}`}>
+              <input
+                type="checkbox"
+                checked={effectiveOpen}
+                onChange={handleToggleOpenStatus}
+                disabled={syncInProgress}
+                aria-label="Thay đổi trạng thái mở cửa của nhà hàng"
+              />
+              <span className="merchant-status-slider" />
+              <span className="merchant-status-toggle-label">{openToggleLabel}</span>
+            </label>
           </div>
 
-          {/* Phone and Email Row */}
-          <div className="info-field-row">
-            <div className="info-field">
-              <label className="field-label">Số điện thoại</label>
-              <div className="field-value-box">
-                <svg className="field-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M4 2H6L7 5L5.5 6C6.5 8 8 9.5 10 10.5L11 9L14 10L14 12C14 13.1046 13.1046 14 12 14C6.47715 14 2 9.52285 2 4C2 2.89543 2.89543 2 4 2Z" stroke="#9CA3AF" strokeWidth="1.5"/>
-                </svg>
-                <span className="field-value">{phone || 'Chưa có'}</span>
+          {/* Name and Image Row */}
+          <div className="info-field-row info-field-row-top">
+            <div className="info-field-left-column">
+              {/* Name Field */}
+              <div className="info-field">
+                <label className="field-label">Tên nhà hàng</label>
+                <div className="field-value-box">
+                  <span className="field-value">{name}</span>
+                </div>
+              </div>
+
+              {/* Rating Field */}
+              <div className="info-field">
+                <label className="field-label">Đánh giá</label>
+                <div className="field-input-with-icon">
+                  <svg className="field-icon" width="14" height="14" viewBox="0 0 16 16" fill="none">
+                    <path d="M8 1L10.163 5.39L15 6.118L11.5 9.521L12.326 14.342L8 12.062L3.674 14.342L4.5 9.521L1 6.118L5.837 5.39L8 1Z" fill="#FFA500" stroke="#FFA500" strokeWidth="1.5"/>
+                  </svg>
+                  <span className="field-value-readonly">{avgRating.toFixed(1)} ({ratingCount} đánh giá)</span>
+                </div>
+              </div>
+
+              {/* Cuisine Types Field */}
+              <div className="info-field">
+                <label className="field-label">Loại ẩm thực</label>
+                <div className="field-input-with-icon">
+                  <svg className="field-icon" width="14" height="14" viewBox="0 0 16 16" fill="none">
+                    <path d="M8 2L10 6L14 7L10 10L11 14L8 12L5 14L6 10L2 7L6 6L8 2Z" stroke="#9CA3AF" strokeWidth="1.5" strokeLinejoin="round"/>
+                  </svg>
+                  <span className="field-value-readonly">
+                    {Array.isArray(merchantCuisineTypes) && merchantCuisineTypes.length > 0 
+                      ? merchantCuisineTypes.join(', ') 
+                      : 'Chưa có'}
+                  </span>
+                </div>
               </div>
             </div>
 
             <div className="info-field">
-              <label className="field-label">Email</label>
-              <div className="field-value-box">
-                <svg className="field-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M2 4L8 8L14 4M2 4V12C2 12.5523 2.44772 13 3 13H13C13.5523 13 14 12.5523 14 12V4M2 4C2 3.44772 2.44772 3 3 3H13C13.5523 3 14 3.44772 14 4" stroke="#9CA3AF" strokeWidth="1.5"/>
-                </svg>
-                <span className="field-value">{email || 'Chưa có'}</span>
+              <label className="field-label">Hình ảnh cửa hàng</label>
+              <div className="image-upload-container">
+                <div className="image-preview-wrapper">
+                  {form.imagePreview ? (
+                    <img src={form.imagePreview} alt="Restaurant" className="image-preview" />
+                  ) : (
+                    <div className="image-placeholder">
+                      <svg width="36" height="36" viewBox="0 0 48 48" fill="none">
+                        <rect x="6" y="6" width="36" height="36" rx="4" stroke="#D1D5DB" strokeWidth="2"/>
+                        <circle cx="18" cy="18" r="4" fill="#D1D5DB"/>
+                        <path d="M6 32L14 24L22 32L30 24L42 36V38C42 40.2091 40.2091 42 38 42H10C7.79086 42 6 40.2091 6 38V32Z" fill="#D1D5DB"/>
+                      </svg>
+                      <p>Chưa có hình ảnh</p>
+                    </div>
+                  )}
+                </div>
+                <div className="image-upload-actions">
+                  <label className="btn-upload">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                      <path d="M8 2V14M2 8H14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                    Chọn ảnh
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleImageChange}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
+                  {form.imagePreview && (
+                    <button 
+                      type="button"
+                      className="btn-remove-image"
+                      onClick={() => {
+                        if (form.imagePreview.startsWith('blob:')) {
+                          URL.revokeObjectURL(form.imagePreview);
+                        }
+                        setForm(prev => ({
+                          ...prev,
+                          imageFile: null,
+                          imagePreview: '',
+                        }));
+                        setEditing(true);
+                      }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                        <path d="M4 4L12 12M12 4L4 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                      </svg>
+                      Xóa ảnh
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -436,81 +798,40 @@ const Info = () => {
             <label className="field-label">Mô tả</label>
             <textarea 
               className="field-textarea" 
-              rows={4}
+              rows={3}
               value={form.introduction} 
               onChange={(e)=> setForm(prev=> ({...prev, introduction: e.target.value}))}
               onFocus={() => !editing && setEditing(true)}
               placeholder="Nhập mô tả về nhà hàng"
             />
           </div>
-        </div>
-      </div>
 
-      {/* Opening Hours Card */}
-      <div className="info-card">
-        <div className="card-header card-header-blue">
-          <div className="card-header-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="12" cy="12" r="9" stroke="white" strokeWidth="2"/>
-              <path d="M12 6V12L16 14" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-          </div>
-          <div className="card-header-text">
-            <h3>Giờ mở cửa</h3>
-            <p>Cài đặt giờ hoạt động của nhà hàng</p>
-          </div>
-        </div>
-
-        <div className="info-content">
-          <div className="opening-hours-compact">
-            {/* Weekdays (Mon-Fri) */}
-            <div className="opening-hours-row">
-              <span className="hours-day">Thứ 2 - Thứ 6</span>
-              <input
-                className="hours-input"
-                value={form.openingHours?.monday ?? ''}
-                placeholder="08:00 - 22:00"
-                onChange={(e) => {
-                  const value = e.target.value;
-                  // Update all weekdays (Mon-Fri) with same value
-                  setForm(prev => ({
-                    ...prev,
-                    openingHours: {
-                      ...ensureWeeklyOpeningHours(prev.openingHours),
-                      monday: value,
-                      tuesday: value,
-                      wednesday: value,
-                      thursday: value,
-                      friday: value,
-                    },
-                  }));
-                }}
-                onFocus={() => !editing && setEditing(true)}
-              />
-            </div>
-
-            {/* Weekend (Sat-Sun) */}
-            <div className="opening-hours-row">
-              <span className="hours-day">Thứ 7 - Chủ nhật</span>
-              <input
-                className="hours-input"
-                value={form.openingHours?.saturday ?? ''}
-                placeholder="07:00 - 23:00"
-                onChange={(e) => {
-                  const value = e.target.value;
-                  // Update weekend (Sat-Sun) with same value
-                  setForm(prev => ({
-                    ...prev,
-                    openingHours: {
-                      ...ensureWeeklyOpeningHours(prev.openingHours),
-                      saturday: value,
-                      sunday: value,
-                    },
-                  }));
-                }}
-                onFocus={() => !editing && setEditing(true)}
-              />
-            </div>
+          {/* Opening Hours Button */}
+          <div className="info-field">
+            <label className="field-label">Giờ mở cửa</label>
+            <button 
+              className="btn-opening-hours"
+              onClick={() => setShowOpeningHoursModal(true)}
+              type="button"
+            >
+              <div className="btn-opening-hours-icon">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                  <circle cx="10" cy="10" r="7.5" stroke="currentColor" strokeWidth="1.5"/>
+                  <path d="M10 5V10L13 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+              </div>
+              <div className="btn-opening-hours-content">
+                <span className="btn-opening-hours-title">Quản lý giờ hoạt động</span>
+                <span className="btn-opening-hours-subtitle">
+                  {form.openingHours?.monday || form.openingHours?.saturday 
+                    ? 'Đã cài đặt' 
+                    : 'Chưa cài đặt thời gian'}
+                </span>
+              </div>
+              <svg className="btn-opening-hours-arrow" width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M7 6L13 10L7 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
           </div>
         </div>
       </div>
@@ -540,6 +861,138 @@ const Info = () => {
             </svg>
             {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
           </button>
+        </div>
+      )}
+
+      {/* Opening Hours Modal */}
+      {showOpeningHoursModal && (
+        <div className="modal-overlay" onClick={() => setShowOpeningHoursModal(false)}>
+          <div 
+            className="modal-content modal-opening-hours" 
+            onClick={(e) => e.stopPropagation()}
+            style={{ 
+              width: '520px',
+              maxWidth: '520px',
+              height: '650px', 
+              maxHeight: '650px',
+              minHeight: '650px',
+              overflow: 'hidden'
+            }}
+          >
+            <div className="modal-header">
+              <div>
+                <h2 className="modal-title">Giờ mở cửa</h2>
+                <p className="modal-subtitle">Cài đặt giờ hoạt động của nhà hàng theo từng ngày</p>
+              </div>
+              <button className="modal-close" onClick={() => setShowOpeningHoursModal(false)}>
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                  <path d="M5 5L15 15M15 5L5 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {/* Quick Templates */}
+              <div className="quick-templates">
+                <p className="quick-templates-label">Mẫu nhanh:</p>
+                <div className="quick-templates-buttons">
+                  <button 
+                    type="button"
+                    className="btn-template"
+                    onClick={() => {
+                      const weekdayValue = '08:00 - 22:00';
+                      const weekendValue = '07:00 - 23:00';
+                      setForm(prev => ({
+                        ...prev,
+                        openingHours: {
+                          monday: weekdayValue,
+                          tuesday: weekdayValue,
+                          wednesday: weekdayValue,
+                          thursday: weekdayValue,
+                          friday: weekdayValue,
+                          saturday: weekendValue,
+                          sunday: weekendValue,
+                        },
+                      }));
+                      setEditing(true);
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5"/>
+                      <path d="M8 4V8L11 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                    Chuẩn (8:00-22:00)
+                  </button>
+                  <button 
+                    type="button"
+                    className="btn-template"
+                    onClick={() => {
+                      const allDayValue = '00:00 - 23:59';
+                      setForm(prev => ({
+                        ...prev,
+                        openingHours: {
+                          monday: allDayValue,
+                          tuesday: allDayValue,
+                          wednesday: allDayValue,
+                          thursday: allDayValue,
+                          friday: allDayValue,
+                          saturday: allDayValue,
+                          sunday: allDayValue,
+                        },
+                      }));
+                      setEditing(true);
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M8 2V8L11 11M8 14C4.68629 14 2 11.3137 2 8C2 4.68629 4.68629 2 8 2C11.3137 2 14 4.68629 14 8C14 11.3137 11.3137 14 8 14Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                    Cả ngày (24/7)
+                  </button>
+                </div>
+              </div>
+
+              {/* Opening Hours List */}
+              <div className="opening-hours-edit">
+                {WEEK_ORDER.map((day) => (
+                  <div key={day} className="opening-hours-row">
+                    <span className="hours-day">{DAY_LABELS[day] || day}</span>
+                    <input
+                      className="hours-input"
+                      value={form.openingHours?.[day] ?? ''}
+                      placeholder="08:00 - 22:00"
+                      onChange={(e) => {
+                        updateOpeningHour(day, e.target.value);
+                        setEditing(true);
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button 
+                type="button"
+                className="btn-modal-cancel"
+                onClick={() => setShowOpeningHoursModal(false)}
+              >
+                Đóng
+              </button>
+              <button 
+                type="button"
+                className="btn-modal-save"
+                onClick={() => {
+                  setShowOpeningHoursModal(false);
+                  setEditing(true);
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M3 8L6 11L13 4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Áp dụng
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

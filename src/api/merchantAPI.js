@@ -29,6 +29,69 @@ const buildMerchantRoleHeaders = () => ({
 	"X-Role": "MERCHANT_ADMIN",
 });
 
+const MERCHANT_WEEK_ORDER = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+const MERCHANT_DAY_LABELS = {
+	monday: "Thứ 2",
+	tuesday: "Thứ 3",
+	wednesday: "Thứ 4",
+	thursday: "Thứ 5",
+	friday: "Thứ 6",
+	saturday: "Thứ 7",
+	sunday: "Chủ nhật",
+};
+
+const stripDiacritics = (value = "") => {
+	try {
+		return String(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+	} catch {
+		return String(value);
+	}
+};
+
+const normalizeWeekdayToken = (value = "") => stripDiacritics(String(value).toLowerCase()).replace(/[^a-z0-9]/g, "");
+
+const MERCHANT_DAY_KEY_ALIASES = {
+	monday: ["monday", "mon", "thu2", "thuhai", "t2"],
+	tuesday: ["tuesday", "tue", "thu3", "thuba", "t3"],
+	wednesday: ["wednesday", "wed", "thu4", "thutu", "t4"],
+	thursday: ["thursday", "thu5", "thunam", "t5"],
+	friday: ["friday", "fri", "thu6", "thusau", "t6"],
+	saturday: ["saturday", "sat", "thu7", "thubay", "t7"],
+	sunday: ["sunday", "sun", "chunhat", "chunhat", "cn"],
+};
+
+const resolveMerchantWeekday = (value) => {
+	const normalized = normalizeWeekdayToken(value);
+	if (!normalized) return null;
+	return MERCHANT_WEEK_ORDER.find((day) => MERCHANT_DAY_KEY_ALIASES[day].includes(normalized)) || null;
+};
+
+const normalizeOpeningHoursForState = (source) => {
+	if (!source || typeof source !== "object") return {};
+	const normalized = {};
+	Object.entries(source).forEach(([rawKey, rawValue]) => {
+		if (rawValue == null) return;
+		const dayKey = resolveMerchantWeekday(rawKey) || (MERCHANT_WEEK_ORDER.includes(rawKey) ? rawKey : null);
+		if (!dayKey) return;
+		if (normalized[dayKey] !== undefined) return;
+		normalized[dayKey] = String(rawValue).trim();
+	});
+	return normalized;
+};
+
+const buildBackendOpeningHours = (source = {}) => {
+	const normalized = normalizeOpeningHoursForState(source);
+	const backend = {};
+	MERCHANT_WEEK_ORDER.forEach((day) => {
+		const rawValue = normalized[day];
+		const value = rawValue == null ? "" : String(rawValue).trim();
+		if (!value) return;
+		const label = MERCHANT_DAY_LABELS[day] || day;
+		backend[label] = value;
+	});
+	return backend;
+};
+
 const merchantAPI = {
 	// Tạo menu item mới (multipart/form-data)
 	createMenuItem: async (payload) => {
@@ -321,72 +384,77 @@ const merchantAPI = {
 		return body ?? null;
 	},
 	// Cập nhật thông tin merchant hiện tại (thử nhiều endpoint/phương thức/phân phối key)
-	updateMyInfo: async (payload = {}) => {
+	updateMyInfo: async (payload) => {
 		const token = getToken();
 		if (!token) {
 			throw new Error("Bạn cần đăng nhập lại trước khi cập nhật thông tin.");
 		}
 
-		const normalizeString = (value) => (value == null ? "" : String(value).trim());
-		const normalizeOpeningHours = (source) => {
-			if (!source || typeof source !== "object") return {};
-			const cleaned = {};
-			Object.entries(source).forEach(([key, val]) => {
-				if (val != null && val !== "") cleaned[key] = String(val);
-			});
-			return cleaned;
-		};
-		const normalizeCuisine = (source) => {
-			if (Array.isArray(source)) {
-				return source.map((item) => normalizeString(item)).filter(Boolean);
-			}
-			if (typeof source === "string") {
-				return source.split(",").map((item) => normalizeString(item)).filter(Boolean);
-			}
-			return [];
-		};
-
-		const introduction = normalizeString(payload?.introduction ?? payload?.description);
-		const address = normalizeString(payload?.address);
-		const openingHours = normalizeOpeningHours(payload?.openingHours ?? payload?.opening_hours);
-		const cuisineTypes = normalizeCuisine(payload?.cuisineTypes ?? payload?.cuisine_types);
-		const imgFile = payload?.imgFile || payload?.image || payload?.imageFile || null;
-
-		const form = new FormData();
-		const dataPart = {};
-		if (introduction !== "") dataPart.introduction = introduction;
-		if (address !== "") dataPart.address = address;
-		if (Object.keys(openingHours).length) dataPart.openingHours = openingHours;
-		if (cuisineTypes.length) dataPart.cuisineTypes = cuisineTypes;
-		if (!Object.keys(dataPart).length && !imgFile) {
-			throw new Error("Không có thông tin nào để cập nhật.");
-		}
-
-		form.append("data", new Blob([JSON.stringify(dataPart)], { type: "application/json" }));
-		if (imgFile instanceof File || imgFile instanceof Blob) {
-			form.append("img", imgFile);
-		} else if (typeof imgFile === "string" && imgFile) {
-			const sanitize = (url) => {
-				const trimmed = url.trim();
-				if (!trimmed) return "";
-				return trimmed.split("?")[0] || trimmed;
+		// Nếu payload đã là FormData (từ Info.jsx), sử dụng trực tiếp
+		let form;
+		if (payload instanceof FormData) {
+			form = payload;
+		} else {
+			// Legacy support: convert từ object sang FormData
+			const normalizeString = (value) => (value == null ? "" : String(value).trim());
+			const normalizeCuisine = (source) => {
+				if (Array.isArray(source)) {
+					return source.map((item) => normalizeString(item)).filter(Boolean);
+				}
+				if (typeof source === "string") {
+					return source.split(",").map((item) => normalizeString(item)).filter(Boolean);
+				}
+				return [];
 			};
-			const candidates = Array.from(new Set([imgFile, sanitize(imgFile)].filter(Boolean)));
-			for (const candidate of candidates) {
-				try {
-					const resp = await fetch(candidate, { mode: "cors" });
-					if (!resp.ok) continue;
-					const blob = await resp.blob();
-					const fileName = candidate.split("/").pop()?.split("?")[0] || "merchant-image";
-					form.append("img", blob, fileName);
-					break;
-				} catch {
-					// ignore; thử candidate kế tiếp hoặc bỏ qua
+
+			const introduction = normalizeString(payload?.introduction ?? payload?.description);
+			const address = normalizeString(payload?.address);
+			const normalizedOpeningHours = normalizeOpeningHoursForState(payload?.openingHours ?? payload?.opening_hours);
+			const backendOpeningHours = buildBackendOpeningHours(normalizedOpeningHours);
+			const cuisineTypes = normalizeCuisine(payload?.cuisineTypes ?? payload?.cuisine_types);
+			const imgFile = payload?.imgFile || payload?.image || payload?.imageFile || null;
+
+			form = new FormData();
+			const dataPart = {};
+			if (introduction !== "") dataPart.introduction = introduction;
+			if (address !== "") dataPart.address = address;
+			if (Object.keys(backendOpeningHours).length) {
+				dataPart.openingHours = backendOpeningHours;
+			}
+			if (cuisineTypes.length) dataPart.cuisineTypes = cuisineTypes;
+			
+			if (!Object.keys(dataPart).length && !imgFile) {
+				throw new Error("Không có thông tin nào để cập nhật.");
+			}
+
+			form.append("data", new Blob([JSON.stringify(dataPart)], { type: "application/json" }));
+			
+			if (imgFile instanceof File || imgFile instanceof Blob) {
+				form.append("img", imgFile);
+			} else if (typeof imgFile === "string" && imgFile.trim()) {
+				const sanitize = (url) => {
+					const trimmed = url.trim();
+					if (!trimmed) return "";
+					return trimmed.split("?")[0] || trimmed;
+				};
+				const candidates = Array.from(new Set([imgFile, sanitize(imgFile)].filter(Boolean)));
+				for (const candidate of candidates) {
+					try {
+						const resp = await fetch(candidate, { mode: "cors" });
+						if (!resp.ok) continue;
+						const blob = await resp.blob();
+						const fileName = candidate.split("/").pop()?.split("?")[0] || "merchant-image";
+						form.append("img", blob, fileName);
+						break;
+					} catch {
+						// ignore errors, try next candidate
+					}
 				}
 			}
-		}
-		if (!form.has("img")) {
-			throw new Error("Không tải được ảnh hiện tại, vui lòng chọn ảnh mới trước khi lưu.");
+
+			if (!form.has("img")) {
+				throw new Error("Không thể tải ảnh hiện tại. Vui lòng chọn ảnh mới trước khi lưu.");
+			}
 		}
 
 		const baseURL = (apiClient?.defaults?.baseURL || "").replace(/\/$/, "");
@@ -420,6 +488,49 @@ const merchantAPI = {
 		if (contentType.includes("application/json")) {
 			const body = await response.json();
 			return body?.data ?? body ?? true;
+		}
+		return true;
+	},
+	updateMerchantOpenStatus: async (isOpen) => {
+		const token = getToken();
+		if (!token) {
+			throw new Error("Bạn cần đăng nhập lại trước khi cập nhật trạng thái mở cửa.");
+		}
+
+		const baseURL = (apiClient?.defaults?.baseURL || "").replace(/\/$/, "");
+		const queryValue = isOpen ? "true" : "false";
+		const url = `${baseURL}/merchant/my-merchant/isOpen?isOpen=${queryValue}`;
+		const headers = new Headers();
+		headers.set("Accept", "application/json");
+		headers.set("Authorization", `Bearer ${token}`);
+		headers.set("Role", "MERCHANT_ADMIN");
+		headers.set("X-Role", "MERCHANT_ADMIN");
+
+		const response = await fetch(url, {
+			method: "PATCH",
+			headers,
+			credentials: "same-origin",
+		});
+
+		if (!response.ok) {
+			let message = "Không thể cập nhật trạng thái mở cửa.";
+			try {
+				const data = await response.json();
+				message = data?.message || data?.error || message;
+			} catch {
+				const text = await response.text();
+				if (text) message = text;
+			}
+			throw new Error(message);
+		}
+
+		const contentType = response.headers.get("content-type") || "";
+		if (contentType.includes("application/json")) {
+			const body = await response.json();
+			if (body && typeof body === "object" && Object.prototype.hasOwnProperty.call(body, "data")) {
+				return body.data;
+			}
+			return body ?? true;
 		}
 		return true;
 	},
@@ -532,41 +643,16 @@ const merchantAPI = {
 		// Update order status
 		updateOrderStatus: async (orderId, status, cancelReason = undefined) => {
 			if (!orderId) throw new Error('orderId is required');
-			const payloads = [
-				{ status, cancelReason },
-				{ status, reason: cancelReason },
-				{ status, note: cancelReason },
-			];
-			const endpoints = [
-				{ method: "patch", path: `/merchant/my-orders/${orderId}` },
-				{ method: "patch", path: `/merchant/my-orders/${orderId}/status` },
-				{ method: "put", path: `/merchant/my-orders/${orderId}/status` },
-				{ method: "patch", path: `/merchant/order/${orderId}` },
-				{ method: "patch", path: `/merchant/orders/${orderId}` },
-				{ method: "patch", path: `/customer/merchant/order/${orderId}` },
-			];
-			let lastErr;
-			const baseHeaders = buildMerchantRoleHeaders();
-			for (const endpoint of endpoints) {
-				for (const payload of payloads) {
-					try {
-						const body = { ...payload };
-						if (!cancelReason) {
-							delete body.cancelReason;
-							delete body.reason;
-							delete body.note;
-						}
-						const res = await apiClient[endpoint.method](endpoint.path, body, {
-							headers: { ...baseHeaders },
-						});
-						return res?.data?.data ?? res?.data;
-					} catch (err) {
-						lastErr = err;
-					}
-				}
+			const cleanStatus = String(status ?? '').trim();
+			if (!cleanStatus) throw new Error('status is required');
+			const payload = { status: cleanStatus };
+			if (/^cancel/i.test(cleanStatus) && cancelReason !== undefined) {
+				payload.cancelReason = String(cancelReason ?? '');
 			}
-			if (lastErr) throw lastErr;
-			throw new Error('Không thể cập nhật trạng thái đơn hàng');
+			const res = await apiClient.patch(`/merchant/order/${orderId}`, payload, {
+				headers: { ...buildMerchantRoleHeaders() },
+			});
+			return res?.data?.data ?? res?.data;
 		},
 	
 };

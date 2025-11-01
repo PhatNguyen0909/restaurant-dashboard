@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import './Order.css';
 import merchantAPI from "../../api/merchantAPI";
+import { assets } from "../../assets/assets";
 
 const toNumber = (value, fallback = 0) => {
 	const num = Number(value);
@@ -13,7 +14,12 @@ const formatDateTime = (value) => {
 	if (!value) return '';
 	const date = new Date(value);
 	if (Number.isNaN(date.getTime())) return '';
-	return date.toLocaleString('vi-VN');
+	const day = String(date.getDate()).padStart(2, '0');
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const year = date.getFullYear();
+	const hours = String(date.getHours()).padStart(2, '0');
+	const minutes = String(date.getMinutes()).padStart(2, '0');
+	return `${hours}:${minutes} ${day}/${month}/${year}`;
 };
 
 const extractOrderId = (order) => {
@@ -38,7 +44,7 @@ const extractOrderId = (order) => {
 
 // Map backend status to UI status
 const normalizeStatus = (status) => {
-	const s = String(status ?? '').toUpperCase();
+	const s = String(status ?? '').trim().toUpperCase();
 	switch (s) {
 		case 'CONFIRMED':
 			return 'pending'; // Đang chuẩn bị
@@ -47,7 +53,10 @@ const normalizeStatus = (status) => {
 		case 'COMPLETED':
 			return 'delivered'; // Đã giao
 		case 'CANCELED':
+		case 'CANCELLED':
 			return 'canceled'; // Đã hủy
+		case 'DELIVERED':
+			return 'delivered';
 		default:
 			return 'pending';
 	}
@@ -70,7 +79,7 @@ const statusLabelVN = (status) => {
 		case 'delivering':
 			return 'Đang giao';
 		case 'delivered':
-			return 'Đã giao';
+			return 'Hoàn thành';
 		case 'canceled':
 			return 'Đã hủy';
 		default:
@@ -236,33 +245,32 @@ const extractDetailItems = (detail) => {
 	return [];
 };
 
-const TABS = [
-	{ key: 'preparing', label: 'Đang chuẩn bị' },
-	{ key: 'delivering', label: 'Đang giao' },
-	{ key: 'history', label: 'Lịch sử' },
-];
-
-// Quy ước: status = 'pending' => Đang chuẩn bị, 'shipping' => Đang giao, 'delivered' hoặc 'canceled' => Lịch sử
 const filterOrders = (orders, tab) => {
-  if (tab === 'preparing') return orders.filter(o => o.status === 'pending');
-  if (tab === 'delivering') return orders.filter(o => o.status === 'delivering');
-  return orders.filter(o => o.status === 'delivered' || o.status === 'canceled');
+	if (tab === 'preparing') return orders.filter(o => o.status === 'pending');
+	if (tab === 'delivering') return orders.filter(o => o.status === 'delivering');
+	return orders.filter(o => o.status === 'delivered' || o.status === 'canceled');
 };
+
+const getAdvanceAction = (status) => {
+	if (status === 'pending') {
+		return { backendStatus: 'Delivering', label: 'Sẵn sàng' };
+	}
+	if (status === 'delivering') {
+		return { backendStatus: 'Completed', label: 'Hoàn thành' };
+	}
+	return null;
+};
+
+const resolveErrorMessage = (error, fallback) => (
+	error?.response?.data?.message || error?.message || fallback
+);
+
 const Order = () => {
-		const [tab, setTab] = useState('preparing');
-		const [orders, setOrders] = useState([]);
-		const [loading, setLoading] = useState(false);
-		const [error, setError] = useState('');
-		const [cancelPopup, setCancelPopup] = useState({ open: false, orderId: null });
-		const [cancelReason, setCancelReason] = useState('');
-		// Track expanded cards for history tab
-		const [expanded, setExpanded] = useState(() => new Set());
-		const CANCEL_REASONS = [
-			'Khách đổi ý',
-			'Không liên lạc được với khách',
-			'Hết món',
-			'Lý do khác',
-		];
+	const [tab, setTab] = useState('preparing');
+	const [orders, setOrders] = useState([]);
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState('');
+	const [detailModal, setDetailModal] = useState({ open: false, order: null });
 
 		const fetchOrders = useCallback(async () => {
 			setLoading(true);
@@ -332,226 +340,260 @@ const Order = () => {
 
 		const filteredOrders = useMemo(() => filterOrders(orders, tab), [orders, tab]);
 
-		// Reset expansion when switching tabs
-		useEffect(() => {
-			setExpanded(new Set());
-		}, [tab]);
+	const openDetailModal = useCallback((order) => {
+		setDetailModal({ open: true, order });
+		
+		if (order.detailId && !order.detailLoaded && !order.detailLoading) {
+			setOrders(prev => prev.map(o => 
+				o.id === order.id ? { ...o, detailLoading: true, detailError: undefined } : o
+			));
+			fetchOrderDetail(order.id, order.detailId);
+		}
+	}, [fetchOrderDetail]);
 
-		const handleCardClick = useCallback((orderId) => {
-			let isOpening = false;
-			setExpanded(prev => {
-				const next = new Set(prev);
-				if (next.has(orderId)) {
-					next.delete(orderId);
-				} else {
-					next.add(orderId);
-					isOpening = true;
-				}
-				return next;
-			});
-			if (!isOpening) return;
+	const closeDetailModal = () => {
+		setDetailModal({ open: false, order: null });
+	};
 
-			let detailInfo = null;
-			setOrders(prev => {
-				const target = prev.find(o => o.id === orderId);
-				if (!target || target.detailLoaded || target.detailLoading || !target.detailId) return prev;
-				detailInfo = { orderId: target.id, detailId: target.detailId };
-				return prev.map(o => o.id === orderId ? { ...o, detailLoading: true, detailError: undefined } : o);
-			});
-			if (detailInfo) {
-				fetchOrderDetail(detailInfo.orderId, detailInfo.detailId);
-			}
-		}, [fetchOrderDetail]);
+	const handleAdvanceStatus = async (order) => {
+		const action = getAdvanceAction(order?.status);
+		if (!action) return;
+		const targetId = order?.detailId ?? order?.id;
+		if (!targetId) {
+			alert('Không tìm thấy mã đơn hàng để cập nhật trạng thái.');
+			return;
+		}
+		try {
+			await merchantAPI.updateOrderStatus(targetId, action.backendStatus);
+			const normalized = normalizeStatus(action.backendStatus);
+			setOrders(prev => prev.map(o => {
+				if (o.id !== order.id) return o;
+				return {
+					...o,
+					status: normalized,
+					statusRaw: action.backendStatus,
+					statusLabel: statusLabelVN(normalized),
+				};
+			}));
+			closeDetailModal();
+		} catch (err) {
+			alert('Lỗi chuyển trạng thái: ' + resolveErrorMessage(err, 'Không thể cập nhật trạng thái đơn hàng'));
+		}
+	};
 
-		const handleRetryDetail = useCallback((orderId) => {
-			let detailInfo = null;
-			setOrders(prev => {
-				const target = prev.find(o => o.id === orderId);
-				if (!target || !target.detailId || target.detailLoading) return prev;
-				detailInfo = { orderId: target.id, detailId: target.detailId };
-				return prev.map(o => o.id === orderId ? { ...o, detailLoading: true, detailError: undefined } : o);
-			});
-			if (detailInfo) {
-				fetchOrderDetail(detailInfo.orderId, detailInfo.detailId);
-			}
-		}, [fetchOrderDetail]);
+	const handleCancel = async (order) => {
+		const targetId = order?.detailId ?? order?.id;
+		if (!targetId) {
+			alert('Không tìm thấy mã đơn hàng để hủy.');
+			return;
+		}
+		const confirmCancel = window.confirm('Bạn có chắc muốn hủy đơn hàng này?');
+		if (!confirmCancel) return;
+		const reason = window.prompt('Vui lòng nhập lý do hủy đơn:', 'Khách từ chối nhận hàng');
+		if (reason === null) return;
+		const trimmedReason = String(reason).trim();
+		try {
+			await merchantAPI.updateOrderStatus(targetId, 'Canceled', trimmedReason || undefined);
+			setOrders(prev => prev.map(o => {
+				if (o.id !== order.id) return o;
+				return {
+					...o,
+					status: 'canceled',
+					statusRaw: 'Canceled',
+					statusLabel: statusLabelVN('canceled'),
+				};
+			}));
+			closeDetailModal();
+		} catch (err) {
+			alert('Lỗi hủy đơn: ' + resolveErrorMessage(err, 'Không thể cập nhật trạng thái đơn hàng'));
+		}
+	};
 
-		// Handler chuyển trạng thái đơn sang 'delivering'
-		const handleReady = async (orderId) => {
-			try {
-				await merchantAPI.updateOrderStatus(orderId, 'DELIVERING');
-				setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'delivering' } : o));
-			} catch (err) {
-				alert('Lỗi chuyển trạng thái: ' + (err?.message || 'Không thể cập nhật trạng thái đơn hàng'));
-			}
-		};
-		// Handler xác nhận hoàn thành đơn
-		const handleComplete = async (orderId) => {
-			try {
-				await merchantAPI.updateOrderStatus(orderId, 'COMPLETED');
-				setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'delivered' } : o));
-			} catch (err) {
-				alert('Lỗi chuyển trạng thái: ' + (err?.message || 'Không thể cập nhật trạng thái đơn hàng'));
-			}
-		};
-		// Mở popup hủy đơn
-		const openCancelPopup = (orderId) => {
-			setCancelPopup({ open: true, orderId });
-			setCancelReason('');
-		};
-		// Đóng popup
-		const closeCancelPopup = () => {
-			setCancelPopup({ open: false, orderId: null });
-			setCancelReason('');
-		};
-		// Xác nhận hủy đơn
-		const confirmCancel = async () => {
-			try {
-				await merchantAPI.updateOrderStatus(cancelPopup.orderId, 'CANCELED', cancelReason);
-				setOrders(prev => prev.map(o =>
-					o.id === cancelPopup.orderId ? { ...o, status: 'canceled', cancel_reason: cancelReason } : o
-				));
-				closeCancelPopup();
-			} catch (err) {
-				alert('Lỗi hủy đơn: ' + (err?.message || 'Không thể cập nhật trạng thái đơn hàng'));
-			}
-		};
+	const getTabCount = (tabKey) => {
+		return filterOrders(orders, tabKey).length;
+	};
 
-	return (<div className="order-container">
-			<h1 className="order-title">Quản lý Đơn Hàng</h1>
-			<div className="order-tabs">
-				{TABS.map(t => (
+	return (
+		<div className="order-page">
+			{/* Header */}
+			<div className="order-header">
+				<h1 className="order-title">Quản lý Đơn Hàng</h1>
+				<p className="order-subtitle">Theo dõi và quản lý tất cả đơn hàng</p>
+			</div>
+
+			{/* Tabs with counts */}
+			<div className="order-tabs-wrapper">
+				<div className="order-tabs">
 					<button
-						key={t.key}
-						className={tab === t.key ? 'order-tab active' : 'order-tab'}
-						onClick={() => setTab(t.key)}
+						className={`order-tab ${tab === 'preparing' ? 'active' : ''}`}
+						onClick={() => setTab('preparing')}
 					>
-						{t.label}
+						<img src={assets.clock} alt="Đang chuẩn bị" className="tab-icon" />
+						<span>Đang chuẩn bị</span>
+						<span className="tab-count">{getTabCount('preparing')}</span>
 					</button>
-				))}
-			<button
-				className="order-tab refresh"
-				onClick={fetchOrders}
-				disabled={loading}
-			>
-				{loading ? 'Đang tải…' : 'Làm mới'}
-			</button>
+					<button
+						className={`order-tab ${tab === 'delivering' ? 'active' : ''}`}
+						onClick={() => setTab('delivering')}
+					>
+						<img src={assets.delivery} alt="Đang giao" className="tab-icon" />
+						<span>Đang giao</span>
+						<span className="tab-count">{getTabCount('delivering')}</span>
+					</button>
+					<button
+						className={`order-tab ${tab === 'history' ? 'active' : ''}`}
+						onClick={() => setTab('history')}
+					>
+						<img src={assets.checked} alt="Hoàn thành" className="tab-icon" />
+						<span>Lịch sử</span>
+						<span className="tab-count">{getTabCount('history')}</span>
+					</button>
+				</div>
+				<button
+					className="order-refresh-btn"
+					onClick={fetchOrders}
+					disabled={loading}
+					title="Làm mới"
+				>
+					<img src={assets.refresh} alt="Làm mới" />
+					{loading ? 'Đang tải...' : 'Làm mới'}
+				</button>
 			</div>
-			<div className="order-list-cards">
-					{error && <div style={{ color: '#d9534f', marginBottom: 16 }}>{error}</div>}
-					{!loading && filteredOrders.length === 0 && !error && <div style={{textAlign:'center',color:'#888',marginTop:32}}>Không có đơn hàng nào.</div>}
-					{loading && <div style={{textAlign:'center',color:'#555',marginTop:32}}>Đang tải danh sách đơn hàng…</div>}
-					{!loading && filteredOrders.map(order => {
-						const isExpanded = expanded.has(order.id);
-						return (
-							<div
-								className="order-card order-card--clickable"
-								key={order.id}
-								onClick={() => handleCardClick(order.id)}
-								role="button"
-								aria-expanded={isExpanded}
-								tabIndex={0}
-								onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCardClick(order.id); } }}
-							>
-								{/* Summary row */}
-								<div className="order-card-header">
-									<span className="order-id">#{order.id}</span>
-									<span className={`order-status ${statusClass(order.status)}`}>{statusLabelVN(order.status)}</span>
-									<span className="order-time">{formatDateTime(order.created_at)}</span>
-									<span className="order-total" style={{marginLeft:'auto', fontWeight:600}}>{formatCurrency(order.total_amount)}</span>
-								</div>
 
-								{/* Body: only visible when expanded */}
-								{isExpanded && (
-									<div className="order-card-body">
-										<div><b>Khách:</b> {order.full_name} | <b>SĐT:</b> {order.phone}</div>
-										<div><b>Địa chỉ:</b> {order.address}</div>
-										<div><b>Phương thức thanh toán:</b> {order.payment.method} ({order.payment.status})</div>
-										<div><b>Tổng tiền:</b> {formatCurrency(order.total_amount)}</div>
-										<div><b>Món đã đặt:</b></div>
-										{order.detailLoading && (
-											<div style={{ color: '#555', marginBottom: 8 }}>Đang tải chi tiết đơn hàng…</div>
-										)}
-										{order.detailError && (
-											<div style={{ color: '#d9534f', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-												<span>{order.detailError}</span>
-												{order.detailId && (
-													<button
-														className="order-btn-ready"
-														type="button"
-														onClick={(e) => { e.stopPropagation(); handleRetryDetail(order.id); }}
-													>
-														Thử lại
-													</button>
-												)}
-											</div>
-										)}
-										<ul style={{ margin: 0, paddingLeft: 18 }}>
-											{order.items.length === 0 && !order.detailLoading && <li>Không có món nào</li>}
-											{order.items.map((item, idx) => (
-												<li key={idx}>
-													{item.name} x{item.quantity} ({formatCurrency(item.base_price)})
-													{item.options && item.options.length > 0 && (
-														<ul style={{ margin: 0, paddingLeft: 16 }}>
-															{item.options.map((opt, i) => (
-																<li key={i}>{opt.option} {opt.extra_price > 0 && `(+${formatCurrency(opt.extra_price)})`}</li>
-															))}
-														</ul>
-													)}
-												</li>
-											))}
-										</ul>
-
-										{/* Action buttons inside body for applicable statuses */}
-										{order.status === 'pending' && (
-											<div style={{marginTop:12,display:'flex',gap:8}}>
-												<button className="order-btn-ready" onClick={(e) => { e.stopPropagation(); handleReady(order.id); }}>Sẵn sàng</button>
-												<button className="order-btn-cancel" onClick={(e) => { e.stopPropagation(); openCancelPopup(order.id); }}>Hủy đơn</button>
-											</div>
-										)}
-										{order.status === 'delivering' && (
-											<div style={{marginTop:12,display:'flex',gap:8}}>
-												<button className="order-btn-complete" onClick={(e) => { e.stopPropagation(); handleComplete(order.id); }}>Hoàn thành</button>
-											</div>
-										)}
-									</div>
-								)}
+			{/* Order List */}
+			<div className="order-list">
+				{error && <div className="order-error">{error}</div>}
+				{!loading && filteredOrders.length === 0 && !error && (
+					<div className="order-empty">Không có đơn hàng nào</div>
+				)}
+				{!loading && filteredOrders.map(order => {
+					const advanceAction = getAdvanceAction(order.status);
+					const canCancel = order.status === 'pending' || order.status === 'delivering';
+					return (
+					<div key={order.id} className="order-card" onClick={() => openDetailModal(order)}>
+						<div className="order-card-header">
+							<span className="order-number">#{order.id}</span>
+							<span className={`order-badge order-badge-${order.status}`}>
+								{statusLabelVN(order.status)}
+							</span>
+						</div>
+						<div className="order-card-body">
+							<div className="order-info-row">
+								<span className="order-info-label">Thời gian:</span>
+								<span className="order-info-value order-time">{formatDateTime(order.created_at)}</span>
 							</div>
-						);
-					})}
-			</div>
-				{/* Popup chọn lý do hủy đơn */}
-				{cancelPopup.open && (
-					<div className="order-cancel-popup-overlay">
-						<div className="order-cancel-popup">
-							<h3>Chọn lý do hủy đơn</h3>
-							<div className="order-cancel-reasons">
-								{CANCEL_REASONS.map((reason, idx) => (
-									<label key={idx} className="order-cancel-reason-item">
-										<input
-											type="radio"
-											name="cancel-reason"
-											value={reason}
-											checked={cancelReason === reason}
-											onChange={() => setCancelReason(reason)}
-										/>
-										{reason}
-									</label>
-								))}
-							</div>
-							<div style={{marginTop:16,display:'flex',gap:12,justifyContent:'flex-end'}}>
-								<button className="order-btn-cancel" onClick={closeCancelPopup}>Đóng</button>
-								<button
-									className="order-btn-ready"
-									disabled={!cancelReason}
-									onClick={confirmCancel}
-								>Xác nhận hủy</button>
+							<div className="order-info-row">
+								<span className="order-info-label">Tổng tiền:</span>
+								<span className="order-info-value order-info-value--amount">{formatCurrency(order.total_amount)}</span>
 							</div>
 						</div>
-						<div className="order-cancel-popup-backdrop" onClick={closeCancelPopup}></div>
+						<div className="order-card-actions">
+							{canCancel && (
+								<button
+									className="order-btn-cancel"
+									onClick={(e) => {
+										e.stopPropagation();
+										handleCancel(order);
+									}}
+								>
+									Hủy đơn
+								</button>
+							)}
+							{advanceAction && (
+								<button 
+									className="order-btn-complete"
+									onClick={(e) => {
+										e.stopPropagation();
+										handleAdvanceStatus(order);
+									}}
+								>
+									{advanceAction.label}
+								</button>
+							)}
+						</div>
 					</div>
-				)}
+					);
+				})}
 			</div>
-		);
-	};
-	export default Order;
+
+			{/* Detail Modal */}
+			{detailModal.open && detailModal.order && (
+				<div className="order-modal-overlay" onClick={closeDetailModal}>
+					<div className="order-modal" onClick={(e) => e.stopPropagation()}>
+						<div className="order-modal-header">
+							<h2>Chi tiết đơn hàng #{detailModal.order.id}</h2>
+							<button className="order-modal-close" onClick={closeDetailModal}>✕</button>
+						</div>
+						<div className="order-modal-body">
+							<div className="order-modal-section">
+								<h3>Thông tin chi tiết về đơn hàng</h3>
+								<div className="order-detail-grid">
+									<div className="order-detail-item">
+										<span className="order-detail-label">Khách hàng:</span>
+										<span className="order-detail-value">{detailModal.order.full_name}</span>
+									</div>
+									<div className="order-detail-item">
+										<span className="order-detail-label">Số điện thoại:</span>
+										<span className="order-detail-value">{detailModal.order.phone}</span>
+									</div>
+									<div className="order-detail-item">
+										<span className="order-detail-label">Địa chỉ:</span>
+										<span className="order-detail-value">{detailModal.order.address}</span>
+									</div>
+									<div className="order-detail-item">
+										<span className="order-detail-label">Thời gian:</span>
+										<span className="order-detail-value">{formatDateTime(detailModal.order.created_at)}</span>
+									</div>
+									<div className="order-detail-item">
+										<span className="order-detail-label">Thanh toán:</span>
+										<span className="order-detail-value">{detailModal.order.payment.method} ({detailModal.order.payment.status})</span>
+									</div>
+								</div>
+							</div>
+
+							<div className="order-modal-section">
+								<h3>Món đã đặt:</h3>
+								{detailModal.order.detailLoading && (
+									<div className="order-loading-text">Đang tải chi tiết...</div>
+								)}
+								{detailModal.order.detailError && (
+									<div className="order-error-text">{detailModal.order.detailError}</div>
+								)}
+								<ul className="order-modal-items">
+									{detailModal.order.items.length === 0 && !detailModal.order.detailLoading && (
+										<li>Không có món nào</li>
+									)}
+									{detailModal.order.items.map((item, idx) => (
+										<li key={idx} className="order-modal-item">
+											<div className="order-modal-item-header">
+												<span className="order-modal-item-name">{item.name}</span>
+												<span className="order-modal-item-qty">x{item.quantity}</span>
+												<span className="order-modal-item-price">{formatCurrency(item.base_price * item.quantity)}</span>
+											</div>
+											{item.options && item.options.length > 0 && (
+												<ul className="order-modal-item-options">
+													{item.options.map((opt, i) => (
+														<li key={i}>
+															{opt.option} {opt.extra_price > 0 && `(+${formatCurrency(opt.extra_price)})`}
+														</li>
+													))}
+												</ul>
+											)}
+										</li>
+									))}
+								</ul>
+							</div>
+
+							<div className="order-modal-total">
+								<span>Tổng tiền:</span>
+								<span className="order-modal-total-amount">{formatCurrency(detailModal.order.total_amount)}</span>
+							</div>
+						</div>
+					</div>
+				</div>
+			)}
+		</div>
+	);
+};
+
+export default Order;

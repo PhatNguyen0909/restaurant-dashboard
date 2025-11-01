@@ -113,6 +113,44 @@
   font-size: 12px;
 }
 
+.ogt-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.ogt-action-btn img {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.ogt-action-btn-edit {
+  background: #EFF6FF;
+}
+
+.ogt-action-btn-edit:hover {
+  background: #DBEAFE;
+}
+
+.ogt-action-btn-delete {
+  background: #FEF2F2;
+}
+
+.ogt-action-btn-delete:hover {
+  background: #FEE2E2;
+}
+
+.ogt-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Option Values List */
 .ogt-values {
   display: flex;
@@ -211,6 +249,297 @@
   cursor: not-allowed;
 }
 
+/* Modal Styles */
+.ogt-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+
+.ogt-modal {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  width: min(700px, 92vw);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ogt-modal-small {
+  width: min(450px, 92vw);
+}
+
+.ogt-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.ogt-modal-head h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1F2937;
+}
+
+.ogt-modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #6B7280;
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.ogt-modal-close:hover {
+  color: #1F2937;
+}
+
+.ogt-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.ogt-modal-section {
+  margin-bottom: 24px;
+}
+
+.ogt-modal-section:last-child {
+  margin-bottom: 0;
+}
+
+.ogt-modal-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ogt-modal-values {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ogt-modal-value-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.ogt-modal-value-row:hover {
+  background: #F3F4F6;
+  border-color: #D1D5DB;
+}
+
+.ogt-modal-value-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
+
+.ogt-modal-value-name {
+  font-weight: 500;
+  color: #1F2937;
+  font-size: 14px;
+}
+
+.ogt-modal-value-price {
+  color: #6B7280;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.ogt-modal-value-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ogt-modal-btn-edit,
+.ogt-modal-btn-delete {
+  background: #F9FAFB;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+}
+
+.ogt-modal-btn-edit {
+  background: #EFF6FF;
+}
+
+.ogt-modal-btn-delete {
+  background: #FEF2F2;
+}
+
+.ogt-modal-btn-edit:hover {
+  background: #E0F2FE;
+}
+
+.ogt-modal-btn-delete:hover {
+  background: #FEE2E2;
+}
+
+.ogt-modal-btn-edit:disabled,
+.ogt-modal-btn-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ogt-modal-btn-edit img,
+.ogt-modal-btn-delete img {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.ogt-modal-add-form {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.ogt-modal-input {
+  border: 1px solid #D1D5DB;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s;
+  flex: 1;
+}
+
+.ogt-modal-input:focus {
+  border-color: #FF8C00;
+  box-shadow: 0 0 0 3px rgba(255, 140, 0, 0.1);
+}
+
+.ogt-modal-price-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.ogt-modal-price-input span {
+  color: #6B7280;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.ogt-modal-btn-add {
+  background: #FF8C00;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.ogt-modal-btn-add:hover {
+  background: #E67A00;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 140, 0, 0.3);
+}
+
+.ogt-modal-btn-add:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.ogt-modal-field {
+  margin-bottom: 16px;
+}
+
+.ogt-modal-field label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.ogt-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #E5E7EB;
+}
+
+.ogt-modal-btn-cancel {
+  background: white;
+  border: 1px solid #D1D5DB;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ogt-modal-btn-cancel:hover {
+  background: #F9FAFB;
+  border-color: #9CA3AF;
+}
+
+.ogt-modal-btn-save {
+  background: #FF8C00;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ogt-modal-btn-save:hover {
+  background: #E67A00;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 140, 0, 0.3);
+}
+
+.ogt-modal-btn-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
 @media (max-width: 768px) {
   .ogt-wrap {
     padding: 16px;
@@ -239,5 +568,19 @@
 
   .ogt-val-price {
     margin-left: 0;
+  }
+
+  .ogt-modal {
+    width: 95vw;
+  }
+
+  .ogt-modal-add-form {
+    flex-direction: column;
+  }
+
+  .ogt-modal-value-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
   }
 }

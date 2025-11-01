@@ -223,7 +223,7 @@ export default function AddOptionGroup({ onSuccess }) {
         <p className="aog-sub">Tạo nhóm tuỳ chọn mới cho món ăn của nhà hàng.</p>
       </div>
 
-      <div className="aog-top-row" style={{ marginBottom: 16 }}>
+      <div className="aog-top-row">
         <div className="aog-live aog-card">
           <h3 className="live-title-main">Xem trước (App khách)</h3>
           {!newGroup?.options?.length && (
@@ -235,7 +235,6 @@ export default function AddOptionGroup({ onSuccess }) {
                 <div className="live-group-title">{newGroup.title || 'Tên nhóm'}</div>
                 <div className="live-group-meta">
                   {newGroup.required ? <span className="badge badge-required">Bắt buộc</span> : <span className="badge">Tùy chọn</span>}
-                  <span className="badge badge-weak">{newGroup.type === 'single' ? 'Chọn 1' : 'Chọn nhiều'}</span>
                 </div>
               </div>
               <div className="live-options">
@@ -252,42 +251,82 @@ export default function AddOptionGroup({ onSuccess }) {
             </div>
           )}
         </div>
-      </div>
 
-      <div className="aog-group aog-card">
-        <div className="aog-group-head">
-          <label className="aog-field">
-            <span>Tiêu đề</span>
-            <input value={newGroup.title} onChange={(e) => setNewGroup((prev) => ({ ...prev, title: e.target.value }))} />
-          </label>
-          <label className="aog-field">
-            <span>Kiểu</span>
-            <select value={newGroup.type} onChange={(e) => setNewGroup((prev) => ({ ...prev, type: e.target.value }))}>
-              <option value="single">Chọn 1</option>
-              <option value="multi">Chọn nhiều</option>
-            </select>
-          </label>
-          <label className="aog-check aog-field-inline">
-            <input type="checkbox" checked={!!newGroup.required} onChange={(e) => setNewGroup((prev) => ({ ...prev, required: e.target.checked }))} /> Bắt buộc
-          </label>
-        </div>
-        <div className="aog-opts">
-          {newGroup.options.map((o, oi) => (
-            <div key={oi} className="aog-opt-row">
-              <input className="aog-opt-label" placeholder="Tên option" value={o.label} onChange={(e) => createPatchOption(oi, { label: e.target.value })} />
-              <div className="aog-price-wrap">
-                <input className="aog-opt-price" type="number" value={o.priceDelta} onChange={(e) => createPatchOption(oi, { priceDelta: Number(e.target.value || 0) })} />
-                <span>đ</span>
-              </div>
-              <button className="aog-danger" onClick={() => createRemoveOption(oi)}>Xóa</button>
+        <div className="aog-group aog-card">
+          <div className="aog-section">
+            <label className="aog-field">
+              <span>Tiêu đề</span>
+              <input 
+                placeholder="Nhập tên nhóm tùy chọn"
+                value={newGroup.title} 
+                onChange={(e) => setNewGroup((prev) => ({ ...prev, title: e.target.value }))} 
+              />
+            </label>
+          </div>
+
+          <div className="aog-section">
+            <span className="aog-section-label">Tùy chọn</span>
+
+            <div className="aog-selection-dropdown">
+              <label>Tùy chọn</label>
+              <select value={newGroup.type === 'single' ? '1' : 'multi'} onChange={(e) => setNewGroup((prev) => ({ ...prev, type: e.target.value === '1' ? 'single' : 'multi' }))}>
+                <option value="1">Chọn 1</option>
+                <option value="multi">Chọn nhiều</option>
+              </select>
             </div>
-          ))}
-          <button className="aog-add" onClick={createAddOption}>+ Thêm option</button>
-        </div>
-      </div>
 
-      <div className="aog-actions">
-        <button className="aog-primary" onClick={handleCreateSave} disabled={dishesLoading}>Tạo nhóm</button>
+            <div className="aog-required-section">
+              <span className="aog-section-label">Bắt buộc</span>
+              <label className="aog-toggle">
+                <input 
+                  type="checkbox" 
+                  checked={!!newGroup.required} 
+                  onChange={(e) => setNewGroup((prev) => ({ ...prev, required: e.target.checked }))} 
+                />
+                <span className="aog-toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div className="aog-opts">
+            <div className="aog-opts-header">
+              <span>Tên option</span>
+              <span>Giá thêm</span>
+              <span></span>
+            </div>
+            {newGroup.options.map((o, oi) => (
+              <div key={oi} className="aog-opt-row">
+                <input 
+                  className="aog-opt-label" 
+                  placeholder="Tên option" 
+                  value={o.label} 
+                  onChange={(e) => createPatchOption(oi, { label: e.target.value })} 
+                />
+                <div className="aog-price-wrap">
+                  <input 
+                    className="aog-opt-price" 
+                    type="number" 
+                    placeholder="0"
+                    value={o.priceDelta} 
+                    onChange={(e) => createPatchOption(oi, { priceDelta: Number(e.target.value || 0) })} 
+                  />
+                  <span>đ</span>
+                </div>
+                <button className="aog-danger" onClick={() => createRemoveOption(oi)} title="Xóa">
+                  🗑️
+                </button>
+              </div>
+            ))}
+            <button className="aog-add" onClick={createAddOption}>
+              <span>+</span> Thêm option
+            </button>
+          </div>
+
+          <div className="aog-actions">
+            <button className="aog-ghost" onClick={() => setNewGroup(defaultGroup())}>Hủy</button>
+            <button className="aog-primary" onClick={handleCreateSave} disabled={dishesLoading}>Tạo nhóm</button>
+          </div>
+        </div>
       </div>
 
       {linkModal.open && (

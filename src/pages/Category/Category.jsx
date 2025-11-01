@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import './Category.css';
 import merchantAPI from '../../api/merchantAPI';
+import { assets } from '../../assets/assets';
 
 const Category = () => {
   const [items, setItems] = useState([]);
@@ -198,14 +199,10 @@ const Category = () => {
                     ) : (
                       <>
                         <button className="btn-icon btn-edit" onClick={() => startEdit(item)} title="Sửa">
-                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                            <path d="M11 2L14 5M2 14L2 11L10.5 2.5C11.0523 1.94772 11.9477 1.94772 12.5 2.5C13.0523 3.05228 13.0523 3.94772 12.5 4.5L4 13L2 14Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
+                          <img src={assets.edit} alt="Sửa" />
                         </button>
                         <button className="btn-icon btn-delete" onClick={() => onDelete(item.id)} title="Xóa">
-                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                            <path d="M3 4H13M5 4V3C5 2.44772 5.44772 2 6 2H10C10.5523 2 11 2.44772 11 3V4M6 7V11M10 7V11M4 4H12V13C12 13.5523 11.5523 14 11 14H5C4.44772 14 4 13.5523 4 13V4Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                          </svg>
+                          <img src={assets.trash} alt="Xóa" />
                         </button>
                       </>
                     )}

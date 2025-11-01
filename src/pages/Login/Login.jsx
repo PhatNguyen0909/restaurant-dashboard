@@ -65,29 +65,35 @@ const Login = ({ onLogin }) => {
   return (
     <div className="login-container">
       <form className="login-form" onSubmit={handleSubmit}>
-        <h2>Đăng nhập Nhà Hàng</h2>
+        <h2>Đăng Nhập</h2>
         <input
           type="text"
           placeholder="Email"
           value={email}
           onChange={e => setEmail(e.target.value)}
+          required
         />
         <input
           type="password"
           placeholder="Mật khẩu"
           value={password}
           onChange={e => setPassword(e.target.value)}
+          required
         />
         {error && <div className="login-error">{error}</div>}
-  <button type="submit" disabled={loading}>{loading ? 'Đang đăng nhập...' : 'Đăng nhập'}</button>
-        <div className ='register-prompt'>
-        <p>Bạn Muốn làm đối tác với Potato?</p>
-        <NavLink className="register-link" to="/register">Đăng ký ở đây</NavLink>
-        <p>user test: demo/123</p>
+        <button type="submit" disabled={loading}>
+          {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
+        </button>
+        <div className='register-prompt'>
+          <p>Bạn muốn làm đối tác với chúng tôi?</p>
+          <NavLink className="register-link" to="/register">
+            Đăng ký ngay
+          </NavLink>
+          <p style={{ fontSize: '0.85rem', color: '#9CA3AF', marginTop: '8px' }}>
+            Demo: demo / 123
+          </p>
         </div>
-        
       </form>
-        
     </div>
   );
 };
