@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import './AddDishModal.css';
 import merchantAPI from '../../api/merchantAPI';
-import { useNavigate } from 'react-router-dom';
 
-const AddDishModal = ({ open, onClose }) => {
+const AddDishModal = ({ open, onClose, onDishAdded }) => {
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
   const [imageUrl, setImageUrl] = useState('');
@@ -16,7 +15,6 @@ const AddDishModal = ({ open, onClose }) => {
   const [submitting, setSubmitting] = useState(false);
   const [categories, setCategories] = useState([]);
   const [isVisible, setIsVisible] = useState(true);
-  const navigate = useNavigate();
 
   useEffect(() => {
     (async () => {
@@ -101,6 +99,15 @@ const AddDishModal = ({ open, onClose }) => {
 
       await merchantAPI.createMenuItem(formData);
 
+      if (typeof onDishAdded === 'function') {
+        try {
+          await onDishAdded();
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.error('Failed to refresh menu after adding dish:', err);
+        }
+      }
+
       // Reset form
       setImage(null);
       setImagePreview('');
@@ -109,7 +116,7 @@ const AddDishModal = ({ open, onClose }) => {
       setIsVisible(true);
 
       // Close modal and refresh
-      onClose(true); // Pass true to indicate success
+      onClose?.(true); // Pass true to indicate success
     } catch (err) {
       alert(err?.response?.data?.message || err?.message || 'Tạo sản phẩm thất bại');
     } finally {
@@ -124,7 +131,7 @@ const AddDishModal = ({ open, onClose }) => {
     setImageUrl('');
     setData({ name: '', description: '', category: '', price: '' });
     setIsVisible(true);
-    onClose(false);
+    onClose?.(false);
   };
 
   if (!open) return null;

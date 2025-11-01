@@ -67,6 +67,13 @@ import bag_icon from './bag_icon.png'
 import logout_icon from './logout_icon.png'
 import back from './Back.png'
 import category_icon from './category_icon.png'
+import trash from './trash.png'
+import edit from './edit.png'
+import checked from './checked.png'
+import clock from './clock.png'
+import delivery from './delivery.png'
+import refresh from './refresh.png'
+import cancel from './cancel.png'
 export const assets ={
     back,
     add_icon,
@@ -96,8 +103,14 @@ export const assets ={
     menu_1,
     up,
     down,
-    category_icon
-
+    category_icon,
+    edit,
+    trash,
+    checked,
+    clock,
+    delivery,
+    refresh,
+    cancel
 }
 
 export const url = 'http://localhost:4000'

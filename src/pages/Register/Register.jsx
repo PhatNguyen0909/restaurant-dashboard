@@ -79,10 +79,29 @@ const Register = () => {
   return (
     <div className="register-container">
       <form className="register-form" onSubmit={handleSubmit}>
-        <h2>Đăng ký tài khoản nhà hàng</h2>
-  <input name="merchantName" value={form.merchantName} onChange={onChange} placeholder="Tên nhà hàng" required />
-  <input name="fullName" value={form.fullName} onChange={onChange} placeholder="Tên chủ nhà hàng" required />
-  <input name="address" value={form.address} onChange={onChange} placeholder="Địa chỉ" required />
+        <h2>Đăng Ký Nhà Hàng</h2>
+        <input 
+          name="merchantName" 
+          value={form.merchantName} 
+          onChange={onChange} 
+          placeholder="Tên nhà hàng" 
+          required 
+        />
+        <input 
+          name="fullName" 
+          value={form.fullName} 
+          onChange={onChange} 
+          placeholder="Tên chủ nhà hàng" 
+          required 
+        />
+        <input 
+          name="address" 
+          value={form.address} 
+          onChange={onChange} 
+          placeholder="Địa chỉ" 
+          required 
+        />
+        
         {/* Dropdown chọn nhiều cuisine types */}
         <div className="cuisine-select">
           <button type="button" className="dropdown-toggle" onClick={() => setOpenCuisine((v) => !v)}>
@@ -110,13 +129,27 @@ const Register = () => {
             </div>
           )}
         </div>
-        <input name="email" value={form.email} onChange={onChange} placeholder="Email" type="email" required />
-  {/* Không cần mật khẩu theo spec của backend */}
+        
+        <input 
+          name="email" 
+          value={form.email} 
+          onChange={onChange} 
+          placeholder="Email" 
+          type="email" 
+          required 
+        />
+        
         {error && <div className="register-error">{error}</div>}
         {success && <div className="register-success">{success}</div>}
-        <button type="submit" disabled={loading}>{loading ? 'Đang đăng ký...' : 'Đăng ký'}</button>
-        <div>
-            <p>Bạn đã có tài khoản? <NavLink className="login-link" to="/login">Đăng nhập ở đây</NavLink></p>
+        
+        <button type="submit" disabled={loading}>
+          {loading ? 'Đang đăng ký...' : 'Đăng ký'}
+        </button>
+        
+        <div style={{ textAlign: 'center', marginTop: '12px' }}>
+          <p style={{ margin: 0, fontSize: '0.9rem', color: '#6B7280' }}>
+            Đã có tài khoản? <NavLink className="login-link" to="/login">Đăng nhập ngay</NavLink>
+          </p>
         </div>
       </form>
     </div>

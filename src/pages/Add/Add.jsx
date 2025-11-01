@@ -69,7 +69,7 @@ const Add = () => {
 
             await merchantAPI.createMenuItem(formData);
             
-            // Reset form and navigate to list
+            // Reset form and redirect back to list
             setImage(false);
             setData({ name: '', description: '', category: '', price: '' });
             navigate('/list');

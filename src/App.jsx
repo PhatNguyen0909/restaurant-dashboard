@@ -7,7 +7,6 @@ import List from './pages/List/List';
 import AddOptionGroup from './pages/AddOptionGroup/AddOptionGroup';
 import ManageOptionGroups from './pages/ManageOptionGroups/ManageOptionGroups';
 import OptionGroupsPage from './pages/OptionGroupsTab/OptionGroupsPage';
-import Navbar from './components/Navbar/Navbar';
 import Sidebar from './components/Sidebar/Sidebar';
 import Login from './pages/Login/Login';
 import Register from './pages/Register/Register';
@@ -32,8 +31,6 @@ function App() {
   // Đã đăng nhập, cho vào dashboard
   return (
     <div>
-      <Navbar />
-      <hr />
       <div className='app-content'>
         <Sidebar />
         <Routes>
