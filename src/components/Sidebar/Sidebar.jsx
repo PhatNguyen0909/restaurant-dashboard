@@ -1,6 +1,7 @@
 import React from 'react'
 import './Sidebar.css';
 import { NavLink } from 'react-router-dom';
+import { assets } from '../../assets/assets';
 
 const Sidebar = () => {
   // Get user info from localStorage or use default
@@ -18,11 +19,7 @@ const Sidebar = () => {
       <div className='sidebar-header'>
         <div className='sidebar-logo'>
           <div className='logo-icon'>
-            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect width="40" height="40" rx="10" fill="#FF8C00"/>
-              <path d="M20 10L14 16H17V22H23V16H26L20 10Z" fill="white"/>
-              <path d="M12 24H28V26C28 27.1046 27.1046 28 26 28H14C12.8954 28 12 27.1046 12 26V24Z" fill="white"/>
-            </svg>
+            <img src={assets.logo} alt="POTATO Logo" width="40" height="40" />
           </div>
           <div className='logo-text'>
             <h2>POTATO</h2>

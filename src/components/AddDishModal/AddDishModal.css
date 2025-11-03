@@ -33,6 +33,15 @@
   overflow-y: auto;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   animation: slideUp 0.3s ease;
+  
+  /* Ẩn scrollbar cho Chrome, Safari và Opera */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE và Edge */
+}
+
+/* Ẩn scrollbar cho WebKit browsers (Chrome, Safari) */
+.add-dish-modal-content::-webkit-scrollbar {
+  display: none;
 }
 
 @keyframes slideUp {
