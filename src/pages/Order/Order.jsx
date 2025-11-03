@@ -468,7 +468,7 @@ const Order = () => {
 				)}
 				{!loading && filteredOrders.map(order => {
 					const advanceAction = getAdvanceAction(order.status);
-					const canCancel = order.status === 'pending' || order.status === 'delivering';
+					const canCancel = order.status === 'pending';
 					return (
 					<div key={order.id} className="order-card" onClick={() => openDetailModal(order)}>
 						<div className="order-card-header">
