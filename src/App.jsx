@@ -12,6 +12,7 @@ import Login from './pages/Login/Login';
 import Register from './pages/Register/Register';
 import Info from './pages/Info/Info';
 import Category from './pages/Category/Category';
+import Feedback from './pages/Feedback/Feedback';
 
 function App() {
   const [MerchantId, setMerchantId] = useState(null);
@@ -42,6 +43,7 @@ function App() {
           <Route path='/option-groups' element={<OptionGroupsPage />} />
           <Route path='/order' element={<Order />} />
           <Route path='/info' element={<Info />} />
+          <Route path='/feedback' element={<Feedback />} />
           <Route path='*' element={<Navigate to='/list' replace />} />
         </Routes>
       </div>
