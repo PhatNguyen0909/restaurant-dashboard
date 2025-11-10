@@ -3,11 +3,11 @@ import axios from 'axios';
 import { getToken } from '../utils/tokenUtils';
 
 
-// Sử dụng proxy /api khi dev để tránh CORS, production thì dùng backend thật
+// Sử dụng biến môi trường để cấu hình API URL
 const isDev = import.meta.env.DEV;
 const API_BASE_URL = isDev 
-  ? '/api'  // Sử dụng proxy trong dev mode
-  : 'https://cruise-silk-licence-shed.trycloudflare.com/potato-api';
+  ? '/api'  // Sử dụng proxy trong dev mode để tránh CORS
+  : import.meta.env.VITE_API_BASE_URL || 'https://themselves-resolve-routing-ricky.trycloudflare.com/potato-api';
 
 // Debug: log baseURL một lần để kiểm tra
 if (typeof window !== 'undefined') {

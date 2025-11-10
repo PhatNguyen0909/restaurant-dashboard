@@ -166,7 +166,6 @@ const Info = () => {
   const [manualOpen, setManualOpen] = useState(null);
   const [openStatusUpdating, setOpenStatusUpdating] = useState(false);
   const [timeTick, setTimeTick] = useState(() => Date.now());
-  const [autoSyncing, setAutoSyncing] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -261,60 +260,30 @@ const Info = () => {
   const serverOpen = interpretBoolean(data?.open);
   const effectiveOpen = manualOpen != null
     ? manualOpen
-    : (scheduledOpen != null ? scheduledOpen : (serverOpen ?? false));
+    : (serverOpen != null ? serverOpen : (scheduledOpen ?? false));
   const openStatusDescription = useMemo(() => {
     if (manualOpen != null) {
       return manualOpen
         ? 'Bạn đã bật trạng thái mở cửa thủ công.'
         : 'Bạn đã tắt trạng thái mở cửa thủ công.';
     }
-    if (scheduledOpen != null) {
-      return scheduledOpen
-        ? 'Theo lịch hôm nay, nhà hàng đang hoạt động.'
-        : 'Theo lịch hôm nay, nhà hàng đang tạm đóng.';
+    if (serverOpen != null && scheduledOpen != null && serverOpen !== scheduledOpen) {
+      return serverOpen
+        ? 'Nhà hàng đang mở cửa thủ công, khác với lịch hôm nay.'
+        : 'Nhà hàng đang tạm đóng thủ công, khác với lịch hôm nay.';
     }
     if (serverOpen != null) {
       return serverOpen
         ? 'Trạng thái mở cửa từ hệ thống là đang hoạt động.'
         : 'Trạng thái mở cửa từ hệ thống là đang tạm đóng.';
     }
+    if (scheduledOpen != null) {
+      return scheduledOpen
+        ? 'Theo lịch hôm nay, nhà hàng đang hoạt động.'
+        : 'Theo lịch hôm nay, nhà hàng đang tạm đóng.';
+    }
     return 'Chưa có lịch hoạt động cho hôm nay.';
   }, [manualOpen, scheduledOpen, serverOpen]);
-
-  useEffect(() => {
-    if (manualOpen != null) return;
-    if (scheduledOpen == null) return;
-    if (serverOpen == null) return;
-    if (scheduledOpen === serverOpen) return;
-    if (autoSyncing) return;
-
-    let cancelled = false;
-    const nextState = scheduledOpen;
-
-    const syncStatus = async () => {
-      setAutoSyncing(true);
-      try {
-        await merchantAPI.updateMerchantOpenStatus(nextState);
-        if (cancelled) return;
-        setData((prev) => (prev ? { ...prev, open: nextState } : prev));
-        setTimeTick(Date.now());
-      } catch (err) {
-        if (!cancelled) {
-          // eslint-disable-next-line no-console
-          console.error('[Info] Auto sync open status failed:', err);
-        }
-      } finally {
-        if (!cancelled) {
-          setAutoSyncing(false);
-        }
-      }
-    };
-
-    syncStatus();
-    return () => {
-      cancelled = true;
-    };
-  }, [manualOpen, scheduledOpen, serverOpen, autoSyncing]);
 
   useEffect(() => {
     if (!cuisineDropdownOpen) return undefined;
@@ -346,11 +315,13 @@ const Info = () => {
     if (openStatusUpdating) return;
     const previousManual = manualOpen;
     const previousOpenField = data?.open;
-    const currentEffective = manualOpen != null ? manualOpen : (scheduledOpen ?? false);
+    const currentEffective = effectiveOpen;
     const nextValue = !currentEffective;
+    const manualOverride = scheduledOpen == null || scheduledOpen !== nextValue;
+    const nextManual = manualOverride ? nextValue : null;
 
     setOpenStatusUpdating(true);
-    setManualOpen(nextValue);
+    setManualOpen(nextManual);
     setData((prev) => (prev ? { ...prev, open: nextValue } : prev));
 
     try {
@@ -365,7 +336,7 @@ const Info = () => {
       if (refreshed) {
         setData(refreshed || null);
       } else {
-        setManualOpen(nextValue);
+        setManualOpen(nextManual);
       }
     } catch (error) {
       alert(error?.message || 'Không thể cập nhật trạng thái mở cửa.');
@@ -495,8 +466,6 @@ const Info = () => {
         backendOpeningHours[label] = value;
       });
 
-      const scheduleOpenAfterSave = evaluateScheduleOpenStatus(backendOpeningHours, new Date());
-
       // Tạo data object
       const dataObject = {
         introduction: desired.introduction ?? current.introduction ?? '',
@@ -534,7 +503,15 @@ const Info = () => {
         return;
       }
 
-      const updateResult = await merchantAPI.updateMyInfo(formData);
+      const payload = {
+        introduction: desired.introduction,
+        address: desired.address,
+        openingHours: desired.openingHours,
+        cuisineTypes: desired.cuisineTypes,
+        imgFile: desired.imageFile,
+      };
+
+      await merchantAPI.updateMyInfo(formData);
       
       // Hiển thị thông báo thành công
       alert('Cập nhật thông tin nhà hàng thành công!');
@@ -594,23 +571,6 @@ const Info = () => {
         }));
       }
       setTimeTick(Date.now());
-
-      if (manualOpen == null && scheduleOpenAfterSave != null) {
-        const latestServerOpen = interpretBoolean(refreshed?.open ?? data?.open);
-        if (latestServerOpen == null || latestServerOpen !== scheduleOpenAfterSave) {
-          try {
-            setAutoSyncing(true);
-            await merchantAPI.updateMerchantOpenStatus(scheduleOpenAfterSave);
-            setData((prev) => (prev ? { ...prev, open: scheduleOpenAfterSave } : prev));
-          } catch (syncErr) {
-            // eslint-disable-next-line no-console
-            console.error('[Info] Không thể đồng bộ trạng thái mở cửa sau khi lưu:', syncErr);
-          } finally {
-            setAutoSyncing(false);
-            setTimeTick(Date.now());
-          }
-        }
-      }
       setEditing(false);
     } catch (e) {
       const status = e?.response?.status;
@@ -634,9 +594,9 @@ const Info = () => {
   const merchantCuisineTypes = data.cuisineTypes || [];
   const imageUrl = resolveImageUrl(data);
   const openStatusTitle = effectiveOpen ? 'Nhà hàng đang mở cửa' : 'Nhà hàng đang đóng cửa';
-  const syncInProgress = openStatusUpdating || autoSyncing;
-  const openStatusMessage = syncInProgress
-    ? (openStatusUpdating ? 'Đang cập nhật trạng thái...' : 'Đang đồng bộ trạng thái theo lịch...')
+  const syncInProgress = openStatusUpdating;
+  const openStatusMessage = openStatusUpdating
+    ? 'Đang cập nhật trạng thái...'
     : openStatusDescription;
   const openToggleLabel = effectiveOpen ? 'Đang mở' : 'Đang đóng';
 

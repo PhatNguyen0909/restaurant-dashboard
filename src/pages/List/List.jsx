@@ -19,6 +19,7 @@ const List = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [imageCacheBusters, setImageCacheBusters] = useState({});
   const imageCacheBustersRef = useRef(imageCacheBusters);
+  const [deletingItemId, setDeletingItemId] = useState(null);
 
   useEffect(() => {
     imageCacheBustersRef.current = imageCacheBusters;
@@ -229,6 +230,34 @@ const List = () => {
     await loadMenu();
   };
 
+  // Xóa món ăn
+  const handleDeleteDish = async (item) => {
+    if (!item || !item._id) return;
+
+    const confirmMessage = `Bạn có chắc chắn muốn xóa món "${item.name}"?\nHành động này không thể hoàn tác.`;
+    if (!window.confirm(confirmMessage)) return;
+
+    setDeletingItemId(item._id);
+    
+    try {
+      if (isDemoUser) {
+        // Demo mode: just remove from local state
+        setMenu((prevMenu) => prevMenu.filter((menuItem) => menuItem._id !== item._id));
+        alert('Đã xóa món ăn (demo mode)');
+      } else {
+        // Real mode: call API
+        await merchantAPI.deleteMenuItem(item._id);
+        setMenu((prevMenu) => prevMenu.filter((menuItem) => menuItem._id !== item._id));
+        alert('Đã xóa món ăn thành công');
+      }
+    } catch (error) {
+      console.error('Error deleting dish:', error);
+      alert(error?.response?.data?.message || error?.message || 'Không thể xóa món ăn. Vui lòng thử lại.');
+    } finally {
+      setDeletingItemId(null);
+    }
+  };
+
   // Group menu items by category
   const groupedMenu = React.useMemo(() => {
     const grouped = {};
@@ -365,21 +394,24 @@ const List = () => {
                   
                   {/* Items Grid */}
                   <div className="list-items-grid">
-                {group.items.map((item) => (
-                  <div className="list-item-card" key={item._id}>
+                {group.items.map((item) => {
+                  const isDeleting = deletingItemId === item._id;
+                  return (
+                  <div className="list-item-card" key={item._id} style={{ opacity: isDeleting ? 0.5 : 1 }}>
                     {/* Toggle Status */}
                     <label className="list-item-toggle">
                       <input
                         type="checkbox"
                         checked={item.status === 'available'}
                         onChange={() => isDemoUser ? handleToggleStatusDemo(item) : handleToggleStatus(item)}
+                        disabled={isDeleting}
                       />
                       <span className="list-item-toggle-slider" />
                     </label>
 
                     {/* Three dots menu */}
                     <div className="list-item-menu">
-                      <button className="list-item-menu-btn" onClick={() => handleOpenEditModal(item)}>
+                      <button className="list-item-menu-btn" onClick={() => handleOpenEditModal(item)} disabled={isDeleting}>
                         <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
                           <circle cx="10" cy="4" r="1.5"/>
                           <circle cx="10" cy="10" r="1.5"/>
@@ -400,15 +432,33 @@ const List = () => {
                       <p className="list-item-price">{item.price?.toLocaleString?.() || item.price}đ</p>
                     </div>
 
-                    {/* Edit button */}
-                    <button className="list-item-edit-btn" onClick={() => handleOpenEditModal(item)}>
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M11.333 2.00004C11.5084 1.82463 11.7163 1.68648 11.9451 1.59347C12.1739 1.50046 12.4191 1.45435 12.6663 1.45435C12.9136 1.45435 13.1588 1.50046 13.3876 1.59347C13.6164 1.68648 13.8243 1.82463 13.9997 2.00004C14.1751 2.17545 14.3132 2.38334 14.4063 2.61213C14.4993 2.84093 14.5454 3.08617 14.5454 3.33337C14.5454 3.58058 14.4993 3.82582 14.4063 4.05461C14.3132 4.28341 14.1751 4.4913 13.9997 4.66671L5.33301 13.3334L1.33301 14.3334L2.33301 10.3334L11.333 2.00004Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                      Chỉnh sửa
-                    </button>
+                    {/* Action buttons */}
+                    <div className="list-item-actions">
+                      <button 
+                        className="list-item-edit-btn" 
+                        onClick={() => handleOpenEditModal(item)}
+                        disabled={isDeleting}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                          <path d="M11.333 2.00004C11.5084 1.82463 11.7163 1.68648 11.9451 1.59347C12.1739 1.50046 12.4191 1.45435 12.6663 1.45435C12.9136 1.45435 13.1588 1.50046 13.3876 1.59347C13.6164 1.68648 13.8243 1.82463 13.9997 2.00004C14.1751 2.17545 14.3132 2.38334 14.4063 2.61213C14.4993 2.84093 14.5454 3.08617 14.5454 3.33337C14.5454 3.58058 14.4993 3.82582 14.4063 4.05461C14.3132 4.28341 14.1751 4.4913 13.9997 4.66671L5.33301 13.3334L1.33301 14.3334L2.33301 10.3334L11.333 2.00004Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        Chỉnh sửa
+                      </button>
+                      <button 
+                        className="list-item-delete-btn" 
+                        onClick={() => handleDeleteDish(item)}
+                        disabled={isDeleting}
+                        title="Xóa món ăn"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                          <path d="M2 4h12M5.333 4V2.667a1.333 1.333 0 0 1 1.334-1.334h2.666a1.333 1.333 0 0 1 1.334 1.334V4m2 0v9.333a1.333 1.333 0 0 1-1.334 1.334H4.667a1.333 1.333 0 0 1-1.334-1.334V4h9.334z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        {isDeleting ? 'Đang xóa...' : 'Xóa'}
+                      </button>
+                    </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}

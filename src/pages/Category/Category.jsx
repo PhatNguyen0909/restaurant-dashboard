@@ -177,7 +177,7 @@ const Category = () => {
                 </div>
 
                 <div className="category-card-footer">
-                  <span className="category-count">15 items</span>
+                  <span className="category-count"></span>
                   <div className="category-actions">
                     {editingId === item.id ? (
                       <>
