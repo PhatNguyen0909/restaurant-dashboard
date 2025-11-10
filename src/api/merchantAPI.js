@@ -274,6 +274,14 @@ const merchantAPI = {
 		});
 		return res?.data?.data ?? res?.data ?? null;
 	},
+	// Xóa menu item
+	deleteMenuItem: async (menuItemId) => {
+		if (!menuItemId) throw new Error("Thiếu mã món ăn để xóa");
+		const res = await apiClient.delete(`/merchant/menu-items/${menuItemId}`, {
+			headers: buildMerchantRoleHeaders(),
+		});
+		return res?.data?.data ?? res?.data ?? true;
+	},
 	// CATEGORY: CRUD
 	getCategories: async () => {
 		const res = await apiClient.get("/merchant/categories");

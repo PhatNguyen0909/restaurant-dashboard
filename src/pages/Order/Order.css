@@ -396,6 +396,20 @@
   flex: 1;
 }
 
+.order-detail-item-note {
+  grid-column: 1 / -1;
+  background: #FFF4E6;
+  padding: 12px;
+  border-radius: 8px;
+  border-left: 3px solid #FF8C00;
+}
+
+.order-detail-note-text {
+  font-style: italic;
+  color: #1F2937;
+  line-height: 1.5;
+}
+
 .order-loading-text {
   color: #999;
   text-align: center;
@@ -470,6 +484,32 @@
   position: absolute;
   left: 0;
   color: #FF8C00;
+}
+
+.order-modal-item-note {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #FFF9E6;
+  border-left: 3px solid #FFB84D;
+  border-radius: 4px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.order-modal-item-note-label {
+  font-weight: 600;
+  color: #FF8C00;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.order-modal-item-note-text {
+  color: #555;
+  font-size: 0.9rem;
+  font-style: italic;
+  line-height: 1.5;
+  flex: 1;
 }
 
 .order-modal-total {

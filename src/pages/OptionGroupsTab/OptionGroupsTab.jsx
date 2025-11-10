@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import './OptionGroupsTab.css';
 import OptionAPI from '../../api/Option';
+import merchantAPI from '../../api/merchantAPI';
 import { assets } from '../../assets/assets';
 
 const toNumberSafe = (value) => {
@@ -78,6 +79,18 @@ export default function OptionGroupsTab() {
   const [editValueForm, setEditValueForm] = useState({ name: '', extraPrice: '' });
   const [savingValue, setSavingValue] = useState(false);
 
+  // Menu item assignment states
+  const [dishes, setDishes] = useState([]);
+  const [dishesLoading, setDishesLoading] = useState(false);
+  const [assignedItems, setAssignedItems] = useState([]);
+  const [assignedLoading, setAssignedLoading] = useState(false);
+  const [assignedError, setAssignedError] = useState('');
+  const [selectedMenuIds, setSelectedMenuIds] = useState([]);
+  const [assigning, setAssigning] = useState(false);
+  const [openCats, setOpenCats] = useState({});
+  const [openAssignedCats, setOpenAssignedCats] = useState({});
+  const [removingMenuItemId, setRemovingMenuItemId] = useState('');
+
   const syncEditModalGroup = useCallback((list) => {
     if (!Array.isArray(list) || !list.length) return;
     setEditModal((prev) => {
@@ -92,6 +105,20 @@ export default function OptionGroupsTab() {
       return { ...prev, group: latest };
     });
   }, [getGroupId]);
+
+  // Fetch dishes
+  const fetchDishes = useCallback(async () => {
+    setDishesLoading(true);
+    try {
+      const data = await merchantAPI.getMenuItems();
+      setDishes(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setDishes([]);
+      console.error(err);
+    } finally {
+      setDishesLoading(false);
+    }
+  }, []);
 
   const refreshGroups = useCallback(async () => {
     try {
@@ -185,7 +212,8 @@ export default function OptionGroupsTab() {
         setError('Không tải được danh sách nhóm tuỳ chọn.');
       } finally { setLoading(false); }
     })();
-  }, [isDemo]);
+    fetchDishes();
+  }, [isDemo, fetchDishes]);
 
   const sorted = useMemo(() => groups.slice().sort((a,b)=> String(a.title||a.name||'').localeCompare(String(b.title||b.name||''),'vi')), [groups]);
 
@@ -197,6 +225,16 @@ export default function OptionGroupsTab() {
   const toggle = (id) => setExpanded(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   const getValueId = (value) => value?.id ?? value?.valueId ?? value?.value_id ?? value?.key;
+
+  // Check if option value is active (not soft-deleted)
+  const isValueActive = (value) => {
+    const active = value?.active;
+    if (active === undefined || active === null) return true;
+    if (typeof active === 'boolean') return active;
+    const token = String(active).trim().toLowerCase();
+    if (['false', '0', 'inactive', 'disabled'].includes(token)) return false;
+    return true;
+  };
 
   const isValueVisible = (value) => {
     const raw = value?.isVisible ?? value?.visible ?? value?.status ?? value?.state ?? value?.isActive ?? value?.active;
@@ -302,10 +340,125 @@ export default function OptionGroupsTab() {
     }
   };
 
+  // Dishes by ID map
+  const dishesById = useMemo(() => {
+    const map = new Map();
+    dishes.forEach((item) => {
+      if (!item || typeof item !== 'object') return;
+      const rawId = item?.id ?? item?._id ?? item?.menuItemId ?? item?.menu_item_id;
+      if (rawId === undefined || rawId === null) return;
+      map.set(String(rawId), item);
+    });
+    return map;
+  }, [dishes]);
+
+  // Fetch assigned menu items
+  const fetchAssignedMenuItems = useCallback(async (groupId, options = {}) => {
+    const { syncSelection = false } = options;
+    if (!groupId) {
+      setAssignedItems([]);
+      setAssignedError('');
+      if (syncSelection) setSelectedMenuIds([]);
+      return [];
+    }
+
+    setAssignedLoading(true);
+    setAssignedError('');
+    try {
+      const res = await OptionAPI.getMenuItems(groupId);
+      const rawList = Array.isArray(res) ? res : [];
+
+      const normalized = [];
+      const seen = new Set();
+      rawList.forEach((entry) => {
+        if (!entry) return;
+        const dishIdRaw = entry?.id ?? entry?.menuItemId ?? entry?.menu_item_id ?? entry?._id;
+        if (dishIdRaw == null) return;
+        const key = String(dishIdRaw);
+        if (seen.has(key)) return;
+        seen.add(key);
+        normalized.push({
+          id: key,
+          name: entry?.name || entry?.title || 'Không tên',
+          basePrice: toNumberSafe(entry?.basePrice ?? entry?.price ?? entry?.listPrice ?? 0),
+          imgUrl: entry?.imgUrl ?? entry?.image ?? entry?.thumbnailUrl ?? '',
+          category: entry?.category,
+          categoryId: entry?.categoryId ?? entry?.category_id,
+          categoryName: entry?.categoryName ?? entry?.category?.name,
+        });
+      });
+
+      setAssignedItems(normalized);
+      if (syncSelection) {
+        setSelectedMenuIds(normalized.map(item => item.id));
+      }
+      return normalized;
+    } catch (err) {
+      console.error('Fetch assigned menu items error:', err);
+      setAssignedItems([]);
+      setAssignedError('Không tải được danh sách món đã gán');
+      if (syncSelection) setSelectedMenuIds([]);
+      return [];
+    } finally {
+      setAssignedLoading(false);
+    }
+  }, [dishesById]);
+
+  // Group dishes by category
+  const groupedDishes = useMemo(() => {
+    const byCat = {};
+    dishes.forEach((d) => {
+      const cat = d?.categoryName || d?.category?.name || 'Khác';
+      if (!byCat[cat]) byCat[cat] = [];
+      byCat[cat].push(d);
+    });
+    return byCat;
+  }, [dishes]);
+
+  // Assigned categories
+  const assignedCategories = useMemo(() => {
+    if (!assignedItems.length) return [];
+    const map = new Map();
+    assignedItems.forEach((item) => {
+      if (!item) return;
+      const catIdRaw = item?.category?.id ?? item?.categoryId ?? item?.category_id ?? item?.categoryKey;
+      const catName = item?.category?.name ?? item?.categoryName ?? 'Khác';
+      const key = catIdRaw !== undefined && catIdRaw !== null ? String(catIdRaw) : catName;
+      if (!map.has(key)) {
+        map.set(key, { id: catIdRaw, name: catName, dishes: [] });
+      }
+      const bucket = map.get(key);
+      const dishIdRaw = item?.id ?? item?.menuItemId ?? item?.menu_item_id ?? item?._id;
+      bucket.dishes.push({
+        id: dishIdRaw != null ? String(dishIdRaw) : undefined,
+        name: item?.name || item?.title || 'Không tên',
+        price: toNumberSafe(item?.basePrice ?? item?.price ?? item?.listPrice ?? 0),
+        imgUrl: item?.imgUrl ?? item?.image ?? item?.thumbnailUrl ?? '',
+      });
+    });
+
+    return Array.from(map.values())
+      .map((entry) => ({
+        ...entry,
+        dishes: entry.dishes.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi', { sensitivity: 'base' })),
+      }))
+      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi', { sensitivity: 'base' }));
+  }, [assignedItems]);
+
   // Open edit modal
-  const handleEditGroup = (group) => {
+  const handleEditGroup = async (group) => {
+    const groupId = getGroupId(group);
     setEditModal({ open: true, group });
     setAddValueForm({ name: '', extraPrice: '' });
+    setSelectedMenuIds([]);
+    setOpenCats({});
+    setOpenAssignedCats({});
+    setRemovingMenuItemId('');
+    
+    // Fetch assigned menu items
+    if (groupId) {
+      await fetchAssignedMenuItems(groupId, { syncSelection: true });
+    }
   };
 
   // Close edit modal
@@ -314,6 +467,12 @@ export default function OptionGroupsTab() {
     setAddValueForm({ name: '', extraPrice: '' });
     setEditValueModal({ open: false, value: null, groupId: null });
     setEditValueForm({ name: '', extraPrice: '' });
+    setAssignedItems([]);
+    setAssignedError('');
+    setSelectedMenuIds([]);
+    setOpenCats({});
+    setOpenAssignedCats({});
+    setRemovingMenuItemId('');
   };
 
   // Add new option value
@@ -346,7 +505,7 @@ export default function OptionGroupsTab() {
     }
   };
 
-  // Delete option value
+  // Delete option value (soft delete by setting active = false)
   const handleDeleteValue = async (value) => {
     if (!editModal.group) return;
     const groupId = getGroupId(editModal.group);
@@ -367,7 +526,8 @@ export default function OptionGroupsTab() {
     setDeletingValueId(valueIdStr);
 
     try {
-      await OptionAPI.deleteOptionValue(valueId);
+      // Soft delete: set active = false instead of hard delete
+      await OptionAPI.updateOptionValue(valueId, { active: false });
       alert('Đã xóa lựa chọn');
       await refreshGroups();
     } catch (err) {
@@ -442,6 +602,80 @@ export default function OptionGroupsTab() {
     }
   };
 
+  // Toggle assigned category
+  const toggleAssignedCategory = (id) => {
+    setOpenAssignedCats((prev) => {
+      const key = id != null ? String(id) : '__unknown__';
+      return { ...prev, [key]: !prev[key] };
+    });
+  };
+
+  // Handle assign menu items
+  const handleAssignMenuItems = async () => {
+    if (!editModal.group) return;
+    const groupId = getGroupId(editModal.group);
+    if (!groupId) {
+      alert('Không xác định được mã nhóm');
+      return;
+    }
+
+    const uniqueIds = Array.from(new Set(selectedMenuIds));
+
+    setAssigning(true);
+    try {
+      await OptionAPI.assignMenuItems(groupId, uniqueIds);
+      alert('Đã gán nhóm vào các món đã chọn');
+      await fetchAssignedMenuItems(groupId, { syncSelection: true });
+      await refreshGroups();
+    } catch (err) {
+      alert(err?.response?.data?.message || err?.message || 'Gán thất bại');
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  // Handle remove assigned dish
+  const handleRemoveAssignedDish = useCallback(async (menuItemIdRaw) => {
+    if (menuItemIdRaw === undefined || menuItemIdRaw === null) {
+      return;
+    }
+
+    const groupId = getGroupId(editModal.group);
+    if (!groupId) {
+      alert('Không xác định được mã nhóm');
+      return;
+    }
+
+    const idStr = String(menuItemIdRaw);
+    const baseIds = Array.from(new Set((selectedMenuIds || []).map((value) => String(value)).filter(Boolean)));
+
+    if (!baseIds.includes(idStr)) {
+      return;
+    }
+
+    const payloadIds = baseIds.filter((value) => value !== idStr);
+    const previousAssigned = assignedItems.slice();
+    const previousSelected = selectedMenuIds.slice();
+
+    setRemovingMenuItemId(idStr);
+
+    setAssignedItems((prev) => prev.filter((item) => String(item?.id) !== idStr));
+    setSelectedMenuIds(payloadIds);
+
+    try {
+      await OptionAPI.assignMenuItems(groupId, payloadIds);
+      await fetchAssignedMenuItems(groupId, { syncSelection: true });
+      await refreshGroups();
+    } catch (err) {
+      console.error('Unassign menu item error:', err);
+      setAssignedItems(previousAssigned);
+      setSelectedMenuIds(previousSelected);
+      alert(err?.response?.data?.message || err?.message || 'Bỏ gán thất bại');
+    } finally {
+      setRemovingMenuItemId('');
+    }
+  }, [editModal.group, selectedMenuIds, assignedItems, fetchAssignedMenuItems, getGroupId, refreshGroups]);
+
   return (
     <div className="ogt-wrap">
       <div className="ogt-head">
@@ -466,14 +700,17 @@ export default function OptionGroupsTab() {
             const valuesRaw = Array.isArray(group.options)
               ? group.options
               : (Array.isArray(group.optionValues) ? group.optionValues : []);
-            const values = valuesRaw.map((val, idx) => ({
-              key: getValueId(val) ?? `${gid}-${idx}`,
-              id: getValueId(val),
-              index: idx,
-              name: val.label || val.name || val.title || `Lựa chọn ${idx + 1}`,
-              price: val.extraPrice ?? val.priceDelta ?? val.price ?? 0,
-              isVisible: isValueVisible(val),
-            }));
+            // Filter out soft-deleted values (active: false)
+            const values = valuesRaw
+              .filter((val) => isValueActive(val))
+              .map((val, idx) => ({
+                key: getValueId(val) ?? `${gid}-${idx}`,
+                id: getValueId(val),
+                index: idx,
+                name: val.label || val.name || val.title || `Lựa chọn ${idx + 1}`,
+                price: val.extraPrice ?? val.priceDelta ?? val.price ?? 0,
+                isVisible: isValueVisible(val),
+              }));
             const totalLinked = counts[gid] ?? 0;
             return (
               <div key={gid} className={`ogt-item ${open?'open':''}`}>
@@ -553,6 +790,157 @@ export default function OptionGroupsTab() {
             </div>
 
             <div className="ogt-modal-body">
+              {/* Assigned Menu Items */}
+              <div className="ogt-modal-section">
+                <h4>Món ăn đã gán ({assignedItems.length})</h4>
+                {assignedLoading && (
+                  <div className="ogt-hint">Đang tải danh sách món đã gán...</div>
+                )}
+                {!assignedLoading && assignedError && (
+                  <div className="ogt-error" style={{ padding: '12px', fontSize: '13px' }}>{assignedError}</div>
+                )}
+                {!assignedLoading && !assignedError && !assignedCategories.length && (
+                  <div className="ogt-hint">Chưa gán nhóm này cho món nào.</div>
+                )}
+                {!assignedLoading && !assignedError && !!assignedCategories.length && (
+                  <div className="ogt-assigned-list">
+                    {assignedCategories.map((cat, index) => {
+                      const keyRaw = cat.id ?? cat.name ?? index;
+                      const key = String(keyRaw);
+                      const open = openAssignedCats[key] === true;
+                      return (
+                        <div key={key} className={`ogt-assigned-cat ${open ? 'open' : ''}`}>
+                          <button
+                            type="button"
+                            className="ogt-assigned-cat-header"
+                            onClick={() => toggleAssignedCategory(key)}
+                          >
+                            <div className="ogt-assigned-cat-info">
+                              <div className="ogt-assigned-cat-name">{cat.name || 'Không có danh mục'}</div>
+                              <div className="ogt-assigned-cat-meta">{cat.dishes.length} món</div>
+                            </div>
+                            <img src={open ? assets.up : assets.down} alt="toggle" style={{ width: '16px', height: '16px' }} />
+                          </button>
+                          {open && (
+                            <div className="ogt-assigned-dishes">
+                              {cat.dishes.map((dish, idx) => {
+                                const price = Number.isFinite(dish.price) ? `${dish.price.toLocaleString('vi-VN')}đ` : '-';
+                                const dishKey = dish.id ?? `${key}-${idx}`;
+                                const fallbackLetter = (dish.name || '?').trim().charAt(0).toUpperCase() || '?';
+                                const idStr = dish.id != null ? String(dish.id) : '';
+                                const removing = removingMenuItemId && idStr && removingMenuItemId === idStr;
+                                return (
+                                  <div key={dishKey} className="ogt-assigned-dish-item">
+                                    <div className="ogt-assigned-dish-img">
+                                      {dish.imgUrl ? (
+                                        <img src={dish.imgUrl} alt={dish.name} />
+                                      ) : (
+                                        <div className="ogt-assigned-dish-placeholder">{fallbackLetter}</div>
+                                      )}
+                                    </div>
+                                    <div className="ogt-assigned-dish-info">
+                                      <div className="ogt-assigned-dish-name">{dish.name}</div>
+                                      <div className="ogt-assigned-dish-price">{price}</div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className="ogt-assigned-dish-remove"
+                                      onClick={() => handleRemoveAssignedDish(dish.id)}
+                                      disabled={removing}
+                                      title="Bỏ gán"
+                                    >
+                                      {removing ? '...' : '×'}
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Gán món mới */}
+              <div className="ogt-modal-section">
+                <h4>Gán vào món ăn</h4>
+                {dishesLoading && <div className="ogt-hint">Đang tải món...</div>}
+                {!dishesLoading && !dishes.length && <div className="ogt-hint">Chưa có món nào</div>}
+                {!dishesLoading && dishes.length > 0 && (
+                  <div className="ogt-dish-groups">
+                    {Object.keys(groupedDishes).map((cat) => {
+                      const isOpen = openCats[cat];
+                      return (
+                        <div className="ogt-cat-block" key={cat}>
+                          <div
+                            className="ogt-cat-header"
+                            onClick={() => setOpenCats(prev => ({ ...prev, [cat]: !isOpen }))}
+                          >
+                            <span>{cat}</span>
+                            <img src={isOpen ? assets.up : assets.down} alt="toggle" style={{ width: '16px', height: '16px' }} />
+                          </div>
+                          {isOpen && (
+                            <div className="ogt-dish-grid">
+                              {groupedDishes[cat].map((d) => {
+                                const dishId = String(d?.id ?? d?._id ?? d?.menuItemId ?? '');
+                                const isSelected = selectedMenuIds.includes(dishId);
+                                const dishName = d?.name || d?.title || 'Không tên';
+                                const dishPrice = toNumberSafe(d?.basePrice ?? d?.price ?? d?.listPrice ?? 0);
+                                const imgUrl = d?.imgUrl ?? d?.image ?? d?.thumbnailUrl ?? '';
+                                const fallbackLetter = dishName.trim().charAt(0).toUpperCase() || '?';
+                                
+                                return (
+                                  <div
+                                    key={dishId}
+                                    className={`ogt-dish-card ${isSelected ? 'selected' : ''}`}
+                                    onClick={() => {
+                                      if (isSelected) {
+                                        setSelectedMenuIds(prev => prev.filter(id => id !== dishId));
+                                      } else {
+                                        setSelectedMenuIds(prev => [...prev, dishId]);
+                                      }
+                                    }}
+                                  >
+                                    <div className="ogt-dish-check">
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => {}}
+                                      />
+                                    </div>
+                                    <div className="ogt-dish-img">
+                                      {imgUrl ? (
+                                        <img src={imgUrl} alt={dishName} />
+                                      ) : (
+                                        <div className="ogt-dish-placeholder">{fallbackLetter}</div>
+                                      )}
+                                    </div>
+                                    <div className="ogt-dish-info">
+                                      <div className="ogt-dish-name">{dishName}</div>
+                                      <div className="ogt-dish-price">{dishPrice.toLocaleString('vi-VN')}đ</div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <button 
+                  className="ogt-modal-btn-assign" 
+                  onClick={handleAssignMenuItems}
+                  disabled={assigning || !selectedMenuIds.length || removingMenuItemId}
+                  style={{ marginTop: '16px' }}
+                >
+                  {assigning ? 'Đang gán...' : `Gán vào ${selectedMenuIds.length} món đã chọn`}
+                </button>
+              </div>
+
               {/* Existing Values */}
               <div className="ogt-modal-section">
                 <h4>Danh sách option values</h4>
@@ -561,8 +949,10 @@ export default function OptionGroupsTab() {
                     const valuesRaw = Array.isArray(editModal.group.options)
                       ? editModal.group.options
                       : (Array.isArray(editModal.group.optionValues) ? editModal.group.optionValues : []);
-                    if (!valuesRaw.length) return <div className="ogt-hint">Chưa có option value.</div>;
-                    return valuesRaw.map((val, idx) => {
+                    // Filter out soft-deleted values (active: false)
+                    const activeValues = valuesRaw.filter((val) => isValueActive(val));
+                    if (!activeValues.length) return <div className="ogt-hint">Chưa có option value.</div>;
+                    return activeValues.map((val, idx) => {
                       const valId = getValueId(val);
                       const valName = val.label || val.name || val.title || `Lựa chọn ${idx + 1}`;
                       const valPrice = val.extraPrice ?? val.priceDelta ?? val.price ?? 0;
