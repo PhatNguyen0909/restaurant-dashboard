@@ -174,57 +174,25 @@ const merchantAPI = {
 				throw new Error("Vui lòng chọn ảnh món ăn trước khi lưu thay đổi.");
 			}
 
-			const form = new FormData();
-			form.append("imgFile", imageFile, imageFile.name || "image");
-			if (name !== undefined) form.append("name", String(name));
-			if (description !== undefined && description !== null) form.append("description", String(description));
-			if (categoryId !== undefined && categoryId !== null) form.append("categoryId", String(categoryId));
-			if (basePrice !== undefined && basePrice !== null) form.append("basePrice", String(basePrice));
+		const form = new FormData();
+		form.append("imgFile", imageFile, imageFile.name || "image");
+		if (name !== undefined) form.append("name", String(name));
+		if (description !== undefined && description !== null) form.append("description", String(description));
+		if (categoryId !== undefined && categoryId !== null) form.append("categoryId", String(categoryId));
+		if (basePrice !== undefined && basePrice !== null) form.append("basePrice", String(basePrice));
 
-			const baseURL = (apiClient?.defaults?.baseURL || "").replace(/\/$/, "");
-			const url = `${baseURL}/merchant/menu-items/${id}`;
-			const token = getToken();
-			const headers = new Headers();
-			headers.set("Accept", "application/json");
-			if (token) headers.set("Authorization", `Bearer ${token}`);
-
-			let response;
-			try {
-				response = await fetch(url, {
-					method: "PUT",
-					headers,
-					body: form,
-					credentials: "same-origin",
-				});
-			} catch (networkError) {
-				throw new Error(networkError?.message || "Không thể kết nối đến máy chủ.");
-			}
-
-			if (!response) {
-				throw new Error("Server không phản hồi.");
-			}
-
-			if (!response.ok) {
-				let message = "Không cập nhật được món ăn";
-				try {
-					const data = await response.json();
-					message = data?.message || data?.error || message;
-				} catch {
-					try {
-						const text = await response.text();
-						if (text) message = text;
-					} catch {}
-				}
-				throw new Error(message);
-			}
-
-			const contentType = response.headers.get("content-type") || "";
-			if (contentType.includes("application/json")) {
-				const data = await response.json();
-				return data?.data ?? data ?? true;
-			}
-			return true;
-		},
+		try {
+			const res = await apiClient.put(`/merchant/menu-items/${id}`, form, {
+				headers: {
+					Accept: "application/json",
+				},
+			});
+			return res?.data?.data ?? res?.data ?? true;
+		} catch (networkError) {
+			const message = networkError?.response?.data?.message || networkError?.response?.data?.error || networkError?.message || "Không cập nhật được món ăn";
+			throw new Error(message);
+		}
+	},
 
 		updateDishStatus: async (id, status) => {
 			if (!id) throw new Error("Thiếu mã món ăn để đổi trạng thái");
