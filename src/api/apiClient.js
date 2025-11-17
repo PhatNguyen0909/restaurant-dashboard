@@ -34,7 +34,7 @@ if (typeof window !== 'undefined') {
 export const api = axios.create({
   baseURL: API_BASE_URL,
   // Không set Content-Type mặc định để axios tự gán phù hợp (JSON vs FormData)
-  withCredentials: false,
+  withCredentials: true, // Enable cookies for same-origin (via Vercel proxy)
   timeout: 15000, // timeout 15s
   // Không set Content-Type ở đây để axios tự động detect (JSON hoặc multipart/form-data)
 });

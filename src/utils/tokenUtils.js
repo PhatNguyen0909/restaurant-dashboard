@@ -23,15 +23,19 @@ export function setToken(token) {
 }
 
 export function getToken() {
-  try {
-    const ls = localStorage.getItem(TOKEN_KEY);
-    if (ls) return ls;
-  } catch {}
-  // fallback legacy cookie (để tương thích nếu user chưa refresh)
+  // Ưu tiên Cookie trước (ổn định hơn trên một số môi trường production/PWA)
   try {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${TOKEN_KEY}=`);
-    if (parts.length === 2) return parts.pop().split(';').shift();
+    if (parts.length === 2) {
+      const cookieToken = parts.pop().split(';').shift();
+      if (cookieToken) return cookieToken;
+    }
+  } catch {}
+  // Fallback: localStorage
+  try {
+    const ls = localStorage.getItem(TOKEN_KEY);
+    if (ls) return ls;
   } catch {}
   return null;
 }
