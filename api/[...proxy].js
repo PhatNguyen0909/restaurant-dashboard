@@ -23,7 +23,14 @@ export default async function handler(req, res) {
     : '';
   const backendUrl = `${backendOrigin}/potato-api/${pathParam}${queryString}`;
   
-  console.log('[proxy] Request:', req.method, pathParam, '→', backendUrl);
+  console.log('[proxy] ========== REQUEST START ==========');
+  console.log('[proxy] Method:', req.method);
+  console.log('[proxy] Original URL:', req.url);
+  console.log('[proxy] Path param:', pathParam);
+  console.log('[proxy] Query params:', otherParams);
+  console.log('[proxy] Backend URL:', backendUrl);
+  console.log('[proxy] BACKEND_ORIGIN:', backendOrigin);
+  console.log('[proxy] ====================================');
   
   try {
     // Prepare headers
@@ -62,16 +69,19 @@ export default async function handler(req, res) {
       data = await backendRes.text();
     }
     
-    console.log('[proxy] Response:', backendRes.status);
+    console.log('[proxy] Response status:', backendRes.status);
+    console.log('[proxy] Response data:', typeof data === 'string' ? data.substring(0, 200) : JSON.stringify(data).substring(0, 200));
     
     res.setHeader('Content-Type', contentType || 'application/json');
     return res.status(backendRes.status).json(data);
   } catch (error) {
-    console.error('[proxy] Error:', error.message);
+    console.error('[proxy] ❌ ERROR:', error.message);
+    console.error('[proxy] Stack:', error.stack);
     return res.status(500).json({ 
       error: 'Proxy failed', 
       message: error.message,
-      path: pathParam
+      path: pathParam,
+      backendUrl: backendUrl
     });
   }
 }
