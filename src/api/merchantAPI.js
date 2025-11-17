@@ -433,39 +433,19 @@ const merchantAPI = {
 			}
 		}
 
-		const baseURL = (apiClient?.defaults?.baseURL || "").replace(/\/$/, "");
-		const url = `${baseURL}/merchant/my-merchant`;
-		const headers = new Headers();
-		headers.set("Accept", "application/json");
-		headers.set("Authorization", `Bearer ${token}`);
-		headers.set("Role", "MERCHANT_ADMIN");
-		headers.set("X-Role", "MERCHANT_ADMIN");
-
-		const response = await fetch(url, {
-			method: "PUT",
-			headers,
-			body: form,
-			credentials: "same-origin",
-		});
-
-		if (!response.ok) {
-			let message = "Không thể cập nhật thông tin nhà hàng.";
-			try {
-				const data = await response.json();
-				message = data?.message || data?.error || message;
-			} catch {
-				const text = await response.text();
-				if (text) message = text;
-			}
+		try {
+			const res = await apiClient.put("/merchant/my-merchant", form, {
+				headers: {
+					Accept: "application/json",
+					Role: "MERCHANT_ADMIN",
+					"X-Role": "MERCHANT_ADMIN",
+				},
+			});
+			return res?.data?.data ?? res?.data ?? true;
+		} catch (error) {
+			const message = error?.response?.data?.message || error?.response?.data?.error || error?.message || "Không thể cập nhật thông tin nhà hàng.";
 			throw new Error(message);
 		}
-
-		const contentType = response.headers.get("content-type") || "";
-		if (contentType.includes("application/json")) {
-			const body = await response.json();
-			return body?.data ?? body ?? true;
-		}
-		return true;
 	},
 	updateMerchantOpenStatus: async (isOpen) => {
 		const token = getToken();
@@ -473,42 +453,24 @@ const merchantAPI = {
 			throw new Error("Bạn cần đăng nhập lại trước khi cập nhật trạng thái mở cửa.");
 		}
 
-		const baseURL = (apiClient?.defaults?.baseURL || "").replace(/\/$/, "");
 		const queryValue = isOpen ? "true" : "false";
-		const url = `${baseURL}/merchant/my-merchant/isOpen?isOpen=${queryValue}`;
-		const headers = new Headers();
-		headers.set("Accept", "application/json");
-		headers.set("Authorization", `Bearer ${token}`);
-		headers.set("Role", "MERCHANT_ADMIN");
-		headers.set("X-Role", "MERCHANT_ADMIN");
-
-		const response = await fetch(url, {
-			method: "PATCH",
-			headers,
-			credentials: "same-origin",
-		});
-
-		if (!response.ok) {
-			let message = "Không thể cập nhật trạng thái mở cửa.";
-			try {
-				const data = await response.json();
-				message = data?.message || data?.error || message;
-			} catch {
-				const text = await response.text();
-				if (text) message = text;
-			}
-			throw new Error(message);
-		}
-
-		const contentType = response.headers.get("content-type") || "";
-		if (contentType.includes("application/json")) {
-			const body = await response.json();
+		try {
+			const res = await apiClient.patch(`/merchant/my-merchant/isOpen?isOpen=${queryValue}`, {}, {
+				headers: {
+					Accept: "application/json",
+					Role: "MERCHANT_ADMIN",
+					"X-Role": "MERCHANT_ADMIN",
+				},
+			});
+			const body = res?.data;
 			if (body && typeof body === "object" && Object.prototype.hasOwnProperty.call(body, "data")) {
 				return body.data;
 			}
 			return body ?? true;
+		} catch (error) {
+			const message = error?.response?.data?.message || error?.response?.data?.error || error?.message || "Không thể cập nhật trạng thái mở cửa.";
+			throw new Error(message);
 		}
-		return true;
 	},
 
 	// Lấy danh sách món ăn của nhà hàng theo id
