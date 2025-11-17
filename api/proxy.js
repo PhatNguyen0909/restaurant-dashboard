@@ -1,3 +1,10 @@
+// Disable body parsing to handle raw multipart/form-data
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
 // Simple proxy handler for all /potato-api/* requests
 export default async function handler(req, res) {
   // CORS headers
@@ -39,10 +46,9 @@ export default async function handler(req, res) {
   console.log('[proxy] Has Authorization:', !!req.headers.authorization);
   
   try {
-    // Prepare headers - copy from incoming request
+    // Prepare headers
     const headers = {};
     
-    // Forward content-type from client (important for multipart/form-data with boundary)
     if (req.headers['content-type']) {
       headers['Content-Type'] = req.headers['content-type'];
     }
@@ -51,59 +57,15 @@ export default async function handler(req, res) {
       headers['Authorization'] = req.headers.authorization;
     }
     
-    // Get raw body for multipart/form-data or JSON
-    let body = undefined;
-    if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
-      // Vercel provides req.body as parsed object for JSON
-      // For multipart/form-data, we need raw body
-      const contentType = req.headers['content-type'] || '';
-      
-      if (contentType.includes('multipart/form-data')) {
-        // For multipart, pass through the raw request body
-        // Vercel Edge doesn't provide raw body easily, so we reconstruct from req.body
-        console.log('[proxy] FormData detected - using raw body pass-through');
-        body = req; // Pass the request itself for streaming
-      } else if (req.body) {
-        // For JSON, stringify if needed
-        body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
-      }
-    }
-    
     console.log('[proxy] Content-Type:', req.headers['content-type']);
-    console.log('[proxy] Body type:', typeof body);
+    console.log('[proxy] Has body:', req.method !== 'GET' && req.method !== 'HEAD');
     
-    // For FormData, use different approach
-    if (req.headers['content-type']?.includes('multipart/form-data')) {
-      // Use native fetch with request body stream
-      const response = await fetch(backendUrl, {
-        method: req.method,
-        headers: {
-          'Authorization': headers['Authorization'],
-          'Content-Type': headers['Content-Type'],
-        },
-        body: req.body, // Vercel might have this as Buffer or stream
-        duplex: 'half',
-      });
-      
-      const contentType = response.headers.get('content-type') || '';
-      let data;
-      
-      if (contentType.includes('application/json')) {
-        data = await response.json();
-      } else {
-        data = await response.text();
-      }
-      
-      console.log('[proxy] Response status:', response.status);
-      res.setHeader('Content-Type', contentType || 'application/json');
-      return res.status(response.status).json(data);
-    }
-    
-    // For regular JSON requests
+    // Stream request body to backend (works for both JSON and multipart)
     const response = await fetch(backendUrl, {
       method: req.method,
       headers: headers,
-      body: body,
+      body: req.method !== 'GET' && req.method !== 'HEAD' ? req : undefined,
+      duplex: 'half',
     });
     
     // Get response
@@ -117,11 +79,15 @@ export default async function handler(req, res) {
     }
     
     console.log('[proxy] Response status:', response.status);
-    console.log('[proxy] Response preview:', typeof data === 'string' ? data.substring(0, 100) : JSON.stringify(data).substring(0, 100));
     
     // Return response
     res.setHeader('Content-Type', contentType || 'application/json');
-    return res.status(response.status).json(data);
+    
+    if (typeof data === 'string') {
+      return res.status(response.status).send(data);
+    } else {
+      return res.status(response.status).json(data);
+    }
     
   } catch (error) {
     console.error('[proxy] ERROR:', error.message);
