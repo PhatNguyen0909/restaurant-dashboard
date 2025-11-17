@@ -12,9 +12,8 @@ export default defineConfig(({ mode }) => {
       port: 5174,
       proxy: {
         // Proxy tất cả request bắt đầu bằng /api sang backend để tránh CORS khi dev
-        // URL được lấy từ biến môi trường VITE_API_BASE_URL
         '/api': {
-          target: env.VITE_API_BASE_URL || 'https://themselves-resolve-routing-ricky.trycloudflare.com/potato-api',
+          target: env.VITE_PROXY_TARGET || 'https://themselves-resolve-routing-ricky.trycloudflare.com/potato-api',
           changeOrigin: true,
           secure: false,
           rewrite: (path) => path.replace(/^\/api/, ''),
