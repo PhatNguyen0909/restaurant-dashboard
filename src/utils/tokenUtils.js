@@ -2,13 +2,22 @@
 
 const TOKEN_KEY = 'token';
 
+function setCookie(name, value, days = 7) {
+  try {
+    const expires = new Date(Date.now() + days * 864e5).toUTCString();
+    const isSecure = typeof location !== 'undefined' && location.protocol === 'https:';
+    const secure = isSecure ? '; Secure' : '';
+    document.cookie = `${name}=${encodeURIComponent(String(value))}; expires=${expires}; path=/; SameSite=Lax${secure}`;
+  } catch {}
+}
+
 export function setToken(token) {
   try {
     if (token != null) {
-      // Lưu ở localStorage để tránh gửi Cookie qua proxy /api
-      localStorage.setItem(TOKEN_KEY, String(token));
-      // Xóa cookie cũ nếu tồn tại để không bị forward lên backend qua proxy
-      document.cookie = `${TOKEN_KEY}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+      // Lưu ở localStorage (primary)
+      try { localStorage.setItem(TOKEN_KEY, String(token)); } catch {}
+      // Lưu thêm Cookie (fallback cho các môi trường hạn chế localStorage)
+      setCookie(TOKEN_KEY, token, 7);
     }
   } catch {}
 }
@@ -29,5 +38,5 @@ export function getToken() {
 
 export function removeToken() {
   try { localStorage.removeItem(TOKEN_KEY); } catch {}
-  try { document.cookie = `${TOKEN_KEY}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`; } catch {}
+  try { document.cookie = `${TOKEN_KEY}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax`; } catch {}
 }
