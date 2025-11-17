@@ -38,11 +38,23 @@ api.interceptors.request.use((config) => {
   const url = String(config?.url || '');
   const isPublic = /\/auth\/log-in|\/auth\/login|\/merchant\/register|\/auth\/refresh|\/cuisine-types/i.test(url);
   
+  // Check if this is a FormData request
+  const isFormData = config.data instanceof FormData;
+  
+  // FormData requests bypass proxy and go directly to backend
+  if (isFormData) {
+    const backendOrigin = import.meta?.env?.VITE_BACKEND_ORIGIN || 'https://themselves-resolve-routing-ricky.trycloudflare.com';
+    config.baseURL = backendOrigin;
+    console.log('[apiClient] FormData detected - using direct backend URL:', backendOrigin);
+  }
+  
   if (!isPublic) {
     const token = getToken();
     console.log('[apiClient] Debug:', { 
       url, 
-      hasToken: !!token, 
+      hasToken: !!token,
+      isFormData,
+      baseURL: config.baseURL,
       tokenPreview: token ? token.substring(0, 30) + '...' : 'NONE',
       localStorage: typeof localStorage !== 'undefined' ? 'available' : 'NOT available'
     });
