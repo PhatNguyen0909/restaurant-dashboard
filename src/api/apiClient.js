@@ -21,7 +21,8 @@ const normalizeProxyBase = (url) => {
 };
 
 const proxyBase = normalizeProxyBase(envProxy);
-const API_BASE_URL = proxyBase || envApi || '/api';
+const isProd = !!import.meta?.env?.PROD;
+const API_BASE_URL = proxyBase || envApi || (isProd ? '/potato-api' : '/api');
 
 // Debug: log baseURL
 if (typeof window !== 'undefined') {
