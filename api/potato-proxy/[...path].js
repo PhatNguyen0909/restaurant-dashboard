@@ -2,44 +2,68 @@
 // This allows same-origin requests from frontend to avoid CORS/cookie issues
 
 export default async function handler(req, res) {
+  // Enable CORS for local testing
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH');
+  res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,Content-Type,Authorization,authorization');
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   const { path = [] } = req.query;
   const backendOrigin = process.env.BACKEND_ORIGIN || 'https://themselves-resolve-routing-ricky.trycloudflare.com';
   
   // Construct full backend URL
   const pathStr = Array.isArray(path) ? path.join('/') : path;
-  const backendUrl = `${backendOrigin}/potato-api/${pathStr}`;
+  const queryString = req.url.split('?')[1];
+  const backendUrl = `${backendOrigin}/potato-api/${pathStr}${queryString ? '?' + queryString : ''}`;
+  
+  console.log('[potato-proxy] Forwarding:', req.method, backendUrl);
   
   try {
+    // Prepare headers - forward authorization and content-type
+    const forwardHeaders = {
+      'Content-Type': req.headers['content-type'] || 'application/json',
+    };
+    
+    // Forward Authorization header if present
+    if (req.headers.authorization) {
+      forwardHeaders['Authorization'] = req.headers.authorization;
+    }
+    
     // Forward request to backend
     const backendRes = await fetch(backendUrl, {
       method: req.method,
-      headers: {
-        ...req.headers,
-        host: new URL(backendOrigin).host, // Replace host header
-        'x-forwarded-for': req.headers['x-forwarded-for'] || req.socket.remoteAddress,
-        'x-real-ip': req.headers['x-real-ip'] || req.socket.remoteAddress,
-      },
-      body: req.method !== 'GET' && req.method !== 'HEAD' ? JSON.stringify(req.body) : undefined,
+      headers: forwardHeaders,
+      body: req.method !== 'GET' && req.method !== 'HEAD' && req.body ? JSON.stringify(req.body) : undefined,
     });
 
-    // Forward response
-    const data = await backendRes.text();
+    // Get response data
+    const contentType = backendRes.headers.get('content-type') || '';
+    let data;
     
-    // Copy response headers (but skip some that might cause issues)
-    const skipHeaders = ['content-encoding', 'transfer-encoding', 'connection', 'keep-alive'];
-    for (const [key, value] of backendRes.headers.entries()) {
-      if (!skipHeaders.includes(key.toLowerCase())) {
-        res.setHeader(key, value);
-      }
+    if (contentType.includes('application/json')) {
+      data = await backendRes.json();
+    } else {
+      data = await backendRes.text();
     }
     
-    res.status(backendRes.status).send(data);
+    console.log('[potato-proxy] Response:', backendRes.status, typeof data);
+    
+    // Set content type
+    res.setHeader('Content-Type', contentType);
+    
+    // Return response
+    return res.status(backendRes.status).json(data);
   } catch (error) {
-    console.error('[potato-proxy] Error:', error);
-    res.status(500).json({ 
+    console.error('[potato-proxy] Error:', error.message, error.stack);
+    return res.status(500).json({ 
       error: 'Proxy failed', 
       message: error.message,
-      backendUrl: backendUrl.replace(/\/potato-api.*/, '/potato-api/***') // Hide sensitive path
+      backendOrigin: backendOrigin,
+      timestamp: new Date().toISOString()
     });
   }
 }
