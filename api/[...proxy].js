@@ -13,12 +13,15 @@ export default async function handler(req, res) {
   }
 
   // Vercel provides catch-all path in req.query.proxy as array
-  const { proxy = [] } = req.query;
+  const { proxy = [], ...otherParams } = req.query;
   const pathParam = Array.isArray(proxy) ? proxy.join('/') : String(proxy);
   const backendOrigin = process.env.BACKEND_ORIGIN || 'https://themselves-resolve-routing-ricky.trycloudflare.com';
   
-  // Construct full backend URL
-  const backendUrl = `${backendOrigin}/potato-api/${pathParam}`;
+  // Construct full backend URL with query params
+  const queryString = Object.keys(otherParams).length > 0 
+    ? '?' + new URLSearchParams(otherParams).toString() 
+    : '';
+  const backendUrl = `${backendOrigin}/potato-api/${pathParam}${queryString}`;
   
   console.log('[proxy] Request:', req.method, pathParam, '→', backendUrl);
   
