@@ -2,17 +2,31 @@
 import axios from 'axios';
 import { getToken } from '../utils/tokenUtils';
 
+// Compute base URL from env variables (similar to delivery-app pattern)
+const envApi = import.meta?.env?.VITE_API_BASE_URL?.trim();
+const envProxy = import.meta?.env?.VITE_PROXY_TARGET?.trim();
 
-// Sử dụng biến môi trường để cấu hình API URL
-const isDev = import.meta.env.DEV;
-const API_BASE_URL = isDev 
-  ? '/api'  // Sử dụng proxy trong dev mode để tránh CORS
-  : import.meta.env.VITE_API_BASE_URL || 'https://themselves-resolve-routing-ricky.trycloudflare.com/potato-api';
+const normalizeProxyBase = (url) => {
+  if (!url) return '';
+  try {
+    const u = new URL(url);
+    const cleanPath = u.pathname
+      .replace(/\/swagger-ui\/.*/i, '')
+      .replace(/\/?index\.html\??.*$/i, '')
+      .replace(/\/?$/,'');
+    return `${u.origin}${cleanPath}`;
+  } catch {
+    return '';
+  }
+};
 
-// Debug: log baseURL một lần để kiểm tra
+const proxyBase = normalizeProxyBase(envProxy);
+const API_BASE_URL = proxyBase || envApi || '/api';
+
+// Debug: log baseURL
 if (typeof window !== 'undefined') {
   // eslint-disable-next-line no-console
-  console.log('[apiClient] baseURL =', API_BASE_URL, 'isDev =', isDev);
+  console.log('[apiClient] baseURL =', API_BASE_URL);
 }
 
 // Tạo instance axios chung
