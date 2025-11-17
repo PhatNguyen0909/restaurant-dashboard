@@ -63,7 +63,9 @@ api.interceptors.request.use((config) => {
     
     if (token) {
       if (!config.headers) config.headers = {};
-      config.headers.Authorization = `Bearer ${token}`;
+      // Set both uppercase and lowercase (some backends are case-sensitive)
+      config.headers['Authorization'] = `Bearer ${token}`;
+      config.headers['authorization'] = `Bearer ${token}`;
     } else {
       console.error('[apiClient] ❌ NO TOKEN for protected endpoint:', url);
     }
@@ -75,38 +77,30 @@ api.interceptors.request.use((config) => {
 // Thêm interceptor để log lỗi (tùy chọn)
 api.interceptors.response.use(
   (response) => {
-    // Log response cho update options
-    const url = String(response?.config?.url || '');
-    if (url.includes('/merchant/options/') && (response?.config?.method === 'put' || response?.config?.method === 'PUT')) {
-      console.log('📥 Response Details:', {
-        url: response.config.url,
-        status: response.status,
-        statusText: response.statusText,
-        data: response.data,
-        headers: response.headers
-      });
-    }
     return response;
   },
   (error) => {
-    // Log chi tiết lỗi cho update options
-    const url = String(error?.config?.url || '');
-    if (url.includes('/merchant/options/') && (error?.config?.method === 'put' || error?.config?.method === 'PUT')) {
-      console.error('❌ Response Error:', {
-        url: error.config?.url,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        message: error.message
-      });
-    }
-    
     const status = error?.response?.status;
     const data = error?.response?.data;
     const urlErr = error?.config?.url;
     const method = error?.config?.method;
-    // eslint-disable-next-line no-console
-    console.error('API error:', { status, data, message: error?.message, url: urlErr, method });
+    const sentHeaders = error?.config?.headers;
+    
+    // Log chi tiết để debug
+    console.error('[apiClient] ❌ API Error:', { 
+      url: urlErr, 
+      method,
+      status, 
+      data,
+      sentAuthHeader: sentHeaders?.Authorization ? 'YES (Bearer ' + sentHeaders.Authorization.substring(7, 30) + '...)' : 'NO',
+      message: error?.message 
+    });
+    
+    // Nếu lỗi 1004 (auth required), có thể token hết hạn
+    if (status === 401 || data?.errorCode === 1004) {
+      console.error('[apiClient] 🔐 Authentication failed - token may be expired or invalid');
+    }
+    
     return Promise.reject(error);
   }
 );
