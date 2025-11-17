@@ -1,5 +1,5 @@
 // Vercel Serverless Function: Proxy to backend
-// This allows same-origin requests from frontend to avoid CORS/cookie issues
+// Catch-all route: /api/* forwards to backend
 
 export default async function handler(req, res) {
   // Enable CORS
@@ -12,28 +12,27 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // Extract path from URL: /api/potato-proxy/auth/log-in -> auth/log-in
-  const urlPath = req.url.split('/api/potato-proxy/')[1] || req.query.path || '';
-  const pathParam = urlPath.split('?')[0]; // Remove query string
+  // Vercel provides catch-all path in req.query.proxy as array
+  const { proxy = [] } = req.query;
+  const pathParam = Array.isArray(proxy) ? proxy.join('/') : String(proxy);
   const backendOrigin = process.env.BACKEND_ORIGIN || 'https://themselves-resolve-routing-ricky.trycloudflare.com';
   
   // Construct full backend URL
   const backendUrl = `${backendOrigin}/potato-api/${pathParam}`;
   
-  console.log('[potato-proxy] Request:', req.method, req.url, '→', backendUrl, 'Body:', req.body);
+  console.log('[proxy] Request:', req.method, pathParam, '→', backendUrl);
   
   try {
-    // Prepare headers - forward authorization and content-type
+    // Prepare headers
     const forwardHeaders = {
       'Content-Type': req.headers['content-type'] || 'application/json',
     };
     
-    // Forward Authorization header if present
     if (req.headers.authorization) {
       forwardHeaders['Authorization'] = req.headers.authorization;
     }
     
-    // Prepare body - req.body is already parsed by Vercel
+    // Prepare body
     let bodyData = undefined;
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       if (req.body && typeof req.body === 'object') {
@@ -43,14 +42,14 @@ export default async function handler(req, res) {
       }
     }
     
-    // Forward request to backend
+    // Forward to backend
     const backendRes = await fetch(backendUrl, {
       method: req.method,
       headers: forwardHeaders,
       body: bodyData,
     });
 
-    // Get response data
+    // Parse response
     const contentType = backendRes.headers.get('content-type') || '';
     let data;
     
@@ -60,20 +59,16 @@ export default async function handler(req, res) {
       data = await backendRes.text();
     }
     
-    console.log('[potato-proxy] Response:', backendRes.status, typeof data);
+    console.log('[proxy] Response:', backendRes.status);
     
-    // Set content type
-    res.setHeader('Content-Type', contentType);
-    
-    // Return response
+    res.setHeader('Content-Type', contentType || 'application/json');
     return res.status(backendRes.status).json(data);
   } catch (error) {
-    console.error('[potato-proxy] Error:', error.message, error.stack);
+    console.error('[proxy] Error:', error.message);
     return res.status(500).json({ 
       error: 'Proxy failed', 
       message: error.message,
-      backendOrigin: backendOrigin,
-      timestamp: new Date().toISOString()
+      path: pathParam
     });
   }
 }
