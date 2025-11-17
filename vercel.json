@@ -1,8 +1,8 @@
 {
   "rewrites": [
     {
-      "source": "/potato-api/(.*)",
-      "destination": "/api/potato-proxy/$1"
+      "source": "/potato-api/:path*",
+      "destination": "/api/potato-proxy/:path*"
     }
   ]
 }
