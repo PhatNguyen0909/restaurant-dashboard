@@ -156,7 +156,13 @@ const merchantAPI = {
 				}
 				if (existingImageUrl) {
 					try {
-						const resp = await fetch(existingImageUrl, { mode: "cors" });
+						// Fetch through proxy to avoid CORS
+						const imageUrl = existingImageUrl.trim();
+						const proxyUrl = imageUrl.startsWith('http') 
+							? imageUrl.replace(/^https?:\/\/[^\/]+/, '') 
+							: imageUrl;
+						
+						const resp = await fetch(proxyUrl);
 						if (!resp.ok) throw new Error(`Không tải được ảnh hiện tại (HTTP ${resp.status})`);
 						const blob = await resp.blob();
 						const urlPart = existingImageUrl.split("/").pop() || "image";
@@ -408,28 +414,31 @@ const merchantAPI = {
 			if (imgFile instanceof File || imgFile instanceof Blob) {
 				form.append("img", imgFile);
 			} else if (typeof imgFile === "string" && imgFile.trim()) {
-				const sanitize = (url) => {
-					const trimmed = url.trim();
-					if (!trimmed) return "";
-					return trimmed.split("?")[0] || trimmed;
-				};
-				const candidates = Array.from(new Set([imgFile, sanitize(imgFile)].filter(Boolean)));
-				for (const candidate of candidates) {
-					try {
-						const resp = await fetch(candidate, { mode: "cors" });
-						if (!resp.ok) continue;
+				// User hasn't changed image - fetch existing image through proxy
+				try {
+					// If URL is from backend, it should be accessible via proxy
+					const imageUrl = imgFile.trim();
+					const fileName = imageUrl.split("/").pop()?.split("?")[0] || "merchant-image";
+					
+					// Fetch through same-origin to avoid CORS
+					const proxyUrl = imageUrl.startsWith('http') 
+						? imageUrl.replace(/^https?:\/\/[^\/]+/, '') // Remove domain, keep path
+						: imageUrl;
+					
+					const resp = await fetch(proxyUrl);
+					if (resp.ok) {
 						const blob = await resp.blob();
-						const fileName = candidate.split("/").pop()?.split("?")[0] || "merchant-image";
 						form.append("img", blob, fileName);
-						break;
-					} catch {
-						// ignore errors, try next candidate
+					} else {
+						throw new Error("Không tải được ảnh hiện tại");
 					}
+				} catch (err) {
+					throw new Error("Không tải được ảnh hiện tại. Vui lòng chọn ảnh mới để cập nhật.");
 				}
 			}
 
 			if (!form.has("img")) {
-				throw new Error("Không thể tải ảnh hiện tại. Vui lòng chọn ảnh mới trước khi lưu.");
+				throw new Error("Vui lòng chọn ảnh để cập nhật thông tin nhà hàng.");
 			}
 		}
 
