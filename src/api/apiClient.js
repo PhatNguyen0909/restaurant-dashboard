@@ -2,27 +2,12 @@
 import axios from 'axios';
 import { getToken } from '../utils/tokenUtils';
 
-// Compute base URL from env variables (similar to delivery-app pattern)
+// Compute base URL from env variables
 const envApi = import.meta?.env?.VITE_API_BASE_URL?.trim();
-const envProxy = import.meta?.env?.VITE_PROXY_TARGET?.trim();
-
-const normalizeProxyBase = (url) => {
-  if (!url) return '';
-  try {
-    const u = new URL(url);
-    const cleanPath = u.pathname
-      .replace(/\/swagger-ui\/.*/i, '')
-      .replace(/\/?index\.html\??.*$/i, '')
-      .replace(/\/?$/,'');
-    return `${u.origin}${cleanPath}`;
-  } catch {
-    return '';
-  }
-};
-
-const proxyBase = normalizeProxyBase(envProxy);
 const isProd = !!import.meta?.env?.PROD;
-const API_BASE_URL = proxyBase || envApi || (isProd ? '/potato-api' : '/api');
+
+// Use explicit env or fallback to relative paths
+const API_BASE_URL = envApi || (isProd ? '/potato-api' : '/api');
 
 // Debug: log baseURL
 if (typeof window !== 'undefined') {
