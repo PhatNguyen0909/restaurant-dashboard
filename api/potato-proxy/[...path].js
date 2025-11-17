@@ -2,9 +2,9 @@
 // This allows same-origin requests from frontend to avoid CORS/cookie issues
 
 export default async function handler(req, res) {
-  // Enable CORS for local testing
+  // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '');
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH');
   res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,Content-Type,Authorization,authorization');
   
@@ -20,7 +20,7 @@ export default async function handler(req, res) {
   const queryString = req.url.split('?')[1];
   const backendUrl = `${backendOrigin}/potato-api/${pathStr}${queryString ? '?' + queryString : ''}`;
   
-  console.log('[potato-proxy] Forwarding:', req.method, backendUrl);
+  console.log('[potato-proxy] Request:', req.method, backendUrl, 'Body:', req.body);
   
   try {
     // Prepare headers - forward authorization and content-type
@@ -33,11 +33,21 @@ export default async function handler(req, res) {
       forwardHeaders['Authorization'] = req.headers.authorization;
     }
     
+    // Prepare body - req.body is already parsed by Vercel
+    let bodyData = undefined;
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      if (req.body && typeof req.body === 'object') {
+        bodyData = JSON.stringify(req.body);
+      } else if (req.body) {
+        bodyData = req.body;
+      }
+    }
+    
     // Forward request to backend
     const backendRes = await fetch(backendUrl, {
       method: req.method,
       headers: forwardHeaders,
-      body: req.method !== 'GET' && req.method !== 'HEAD' && req.body ? JSON.stringify(req.body) : undefined,
+      body: bodyData,
     });
 
     // Get response data
