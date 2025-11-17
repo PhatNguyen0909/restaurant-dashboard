@@ -12,12 +12,15 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // Get path from query param (from rewrite)
-  const pathParam = req.query.path || '';
+  // Extract path from URL (after /potato-api/)
+  const urlPath = req.url.replace(/^\/potato-api\/?/, '') || '';
   const backendOrigin = process.env.BACKEND_ORIGIN || 'https://themselves-resolve-routing-ricky.trycloudflare.com';
   
-  // Construct full backend URL
-  const backendUrl = `${backendOrigin}/potato-api/${pathParam}`;
+  // Construct full backend URL with query string
+  const queryString = Object.keys(req.query).length > 0 
+    ? '?' + new URLSearchParams(req.query).toString() 
+    : '';
+  const backendUrl = `${backendOrigin}/potato-api/${urlPath}${queryString}`;
   
   console.log('[potato-proxy] Request:', req.method, backendUrl, 'Body:', req.body);
   

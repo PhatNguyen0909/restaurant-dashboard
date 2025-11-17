@@ -1,8 +1,13 @@
 {
   "rewrites": [
     {
-      "source": "/potato-api/:path(.*)",
-      "destination": "/api/potato-proxy?path=$path"
+      "source": "/potato-api/:path*",
+      "destination": "/api/potato-proxy"
     }
-  ]
+  ],
+  "functions": {
+    "api/potato-proxy.js": {
+      "maxDuration": 30
+    }
+  }
 }
