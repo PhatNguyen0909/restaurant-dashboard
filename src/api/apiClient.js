@@ -6,8 +6,8 @@ import { getToken } from '../utils/tokenUtils';
 const envApi = import.meta?.env?.VITE_API_BASE_URL?.trim();
 const isProd = !!import.meta?.env?.PROD;
 
-// Use explicit env or fallback to relative paths
-const API_BASE_URL = envApi || (isProd ? '/potato-api' : '/api');
+// Direct to serverless function path
+const API_BASE_URL = envApi || (isProd ? '/api/potato-proxy' : '/api');
 
 // Debug: log baseURL
 if (typeof window !== 'undefined') {
