@@ -47,41 +47,28 @@ export const attachToken = (token) => {
   }
 };
 
-// Always attach token from cookie if available
+// Always attach token from localStorage if available
 api.interceptors.request.use((config) => {
-  try {
-    const url = String(config?.url || '');
-    const isPublic = /\/auth\/log-in|\/auth\/login|\/merchant\/register|\/auth\/refresh|\/cuisine-types/i.test(url);
-    const t = getToken();
-    console.log('[apiClient] Request:', { url, isPublic, hasToken: !!t, tokenPreview: t ? `${t.substring(0, 20)}...` : 'none' }); // DEBUG
-    const headers = config.headers || {};
-    const setHeader = (key, value) => {
-      if (typeof headers.set === 'function') {
-        headers.set(key, value);
-      } else {
-        headers[key] = value;
-      }
-    };
-    const deleteHeader = (key) => {
-      if (typeof headers.delete === 'function') {
-        headers.delete(key);
-      } else if (headers[key] !== undefined) {
-        delete headers[key];
-      }
-    };
-
-    if (!isPublic && t) {
-      setHeader('Authorization', `Bearer ${t}`);
-      console.log('[apiClient] Added Authorization header'); // DEBUG
+  const url = String(config?.url || '');
+  const isPublic = /\/auth\/log-in|\/auth\/login|\/merchant\/register|\/auth\/refresh|\/cuisine-types/i.test(url);
+  
+  if (!isPublic) {
+    const token = getToken();
+    console.log('[apiClient] Debug:', { 
+      url, 
+      hasToken: !!token, 
+      tokenPreview: token ? token.substring(0, 30) + '...' : 'NONE',
+      localStorage: typeof localStorage !== 'undefined' ? 'available' : 'NOT available'
+    });
+    
+    if (token) {
+      if (!config.headers) config.headers = {};
+      config.headers.Authorization = `Bearer ${token}`;
     } else {
-      deleteHeader('Authorization');
-      if (isPublic) console.log('[apiClient] Public endpoint, skipping token'); // DEBUG
+      console.error('[apiClient] ❌ NO TOKEN for protected endpoint:', url);
     }
-
-    config.headers = headers;
-  } catch (e) {
-    console.error('[apiClient] Interceptor error:', e); // DEBUG
   }
+  
   return config;
 });
 
