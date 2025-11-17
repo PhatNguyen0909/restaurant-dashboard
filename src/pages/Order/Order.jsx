@@ -159,6 +159,7 @@ const normalizeItem = (item) => {
 		quantity: qty,
 		base_price: base,
 		subtotal,
+		note: item.note ?? item.notes ?? item.itemNote ?? item.item_note ?? item.remark ?? '',
 		options,
 	};
 };
@@ -211,6 +212,7 @@ const normalizeOrder = (order) => {
 		full_name: fullName,
 		phone: order.phone ?? order.phoneNumber ?? customer.phone ?? customer.phoneNumber ?? '',
 		address: order.address ?? order.deliveryAddress ?? customer.address ?? '',
+		note: order.note ?? order.notes ?? order.customerNote ?? order.customer_note ?? order.comment ?? order.remark ?? '',
 		total_amount: toNumber(order.total_amount ?? order.totalAmount ?? order.amount ?? order.grandTotal ?? order.total ?? 0),
 		items,
 		payment: {
@@ -312,6 +314,7 @@ const Order = () => {
 						full_name: normalizedDetail?.full_name || o.full_name,
 						phone: normalizedDetail?.phone || o.phone,
 						address: normalizedDetail?.address || o.address,
+						note: normalizedDetail?.note || o.note,
 						total_amount: normalizedDetail?.total_amount || o.total_amount,
 						items: detailItems.length > 0 ? detailItems : (normalizedDetail?.items?.length ? normalizedDetail.items : o.items),
 						payment: (normalizedDetail?.payment && normalizedDetail.payment.method)
@@ -468,7 +471,7 @@ const Order = () => {
 				)}
 				{!loading && filteredOrders.map(order => {
 					const advanceAction = getAdvanceAction(order.status);
-					const canCancel = order.status === 'pending' || order.status === 'delivering';
+					const canCancel = order.status === 'pending';
 					return (
 					<div key={order.id} className="order-card" onClick={() => openDetailModal(order)}>
 						<div className="order-card-header">
@@ -548,6 +551,12 @@ const Order = () => {
 										<span className="order-detail-label">Thanh toán:</span>
 										<span className="order-detail-value">{detailModal.order.payment.method} ({detailModal.order.payment.status})</span>
 									</div>
+									{detailModal.order.note && (
+										<div className="order-detail-item order-detail-item-note">
+											<span className="order-detail-label">Ghi chú:</span>
+											<span className="order-detail-value order-detail-note-text">{detailModal.order.note}</span>
+										</div>
+									)}
 								</div>
 							</div>
 
@@ -578,6 +587,12 @@ const Order = () => {
 														</li>
 													))}
 												</ul>
+											)}
+											{item.note && (
+												<div className="order-modal-item-note">
+													<span className="order-modal-item-note-label">📝 Ghi chú:</span>
+													<span className="order-modal-item-note-text">{item.note}</span>
+												</div>
 											)}
 										</li>
 									))}
