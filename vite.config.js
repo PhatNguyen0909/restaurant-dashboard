@@ -11,13 +11,13 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5174,
       proxy: {
-        // Proxy tất cả request bắt đầu bằng /api sang backend để tránh CORS khi dev
-        '/api': {
-          target: env.VITE_PROXY_TARGET || 'https://themselves-resolve-routing-ricky.trycloudflare.com/potato-api',
-          changeOrigin: true,
-          secure: false,
-          rewrite: (path) => path.replace(/^\/api/, ''),
-        },
+      '/potato-api': {
+        target: process.env.VITE_PROXY_TARGET || 'https://themselves-resolve-routing-ricky.trycloudflare.com',
+        changeOrigin: true,
+        secure: false,
+        ws: false,
+        rewrite: (path) => path.replace(/^\/potato-api/, '/potato-api'),
+      },
       },
     },
   }
