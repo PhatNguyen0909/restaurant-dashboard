@@ -66,6 +66,41 @@ const resolveMerchantWeekday = (value) => {
 	return MERCHANT_WEEK_ORDER.find((day) => MERCHANT_DAY_KEY_ALIASES[day].includes(normalized)) || null;
 };
 
+const toNumberOrNull = (value) => {
+	if (value === null || value === undefined || value === '') return null;
+	const parsed = Number(value);
+	return Number.isFinite(parsed) ? parsed : null;
+};
+
+const normalizeMerchantCoordinates = (merchant) => {
+	if (!merchant || typeof merchant !== 'object') return merchant;
+	const latitude = toNumberOrNull(
+		merchant.latitude
+		?? merchant.lat
+		?? merchant.merchantLatitude
+		?? merchant.location?.latitude
+	);
+	const longitude = toNumberOrNull(
+		merchant.longitude
+		?? merchant.lng
+		?? merchant.long
+		?? merchant.merchantLongitude
+		?? merchant.location?.longitude
+	);
+	if (latitude == null && longitude == null) {
+		return merchant;
+	}
+	return {
+		...merchant,
+		latitude,
+		longitude,
+		coordinates: {
+			latitude,
+			longitude,
+		},
+	};
+};
+
 const normalizeOpeningHoursForState = (source) => {
 	if (!source || typeof source !== "object") return {};
 	const normalized = {};
@@ -356,14 +391,12 @@ const merchantAPI = {
 	getMyMerchant: async () => {
 		const res = await apiClient.get("/merchant/my-merchant");
 		const body = res?.data;
-		if (body && typeof body === "object") {
-			if (Object.prototype.hasOwnProperty.call(body, "data")) {
-				const inner = body.data;
-				if (inner && typeof inner === "object") return inner;
-				if (inner !== undefined) return inner;
-			}
+		let merchant = body ?? null;
+		if (body && typeof body === "object" && Object.prototype.hasOwnProperty.call(body, "data")) {
+			const inner = body.data;
+			merchant = inner && typeof inner === "object" ? inner : inner ?? body;
 		}
-		return body ?? null;
+		return normalizeMerchantCoordinates(merchant);
 	},
 	// Cập nhật thông tin merchant hiện tại (thử nhiều endpoint/phương thức/phân phối key)
 	updateMyInfo: async (payload) => {
@@ -394,6 +427,8 @@ const merchantAPI = {
 			const normalizedOpeningHours = normalizeOpeningHoursForState(payload?.openingHours ?? payload?.opening_hours);
 			const backendOpeningHours = buildBackendOpeningHours(normalizedOpeningHours);
 			const cuisineTypes = normalizeCuisine(payload?.cuisineTypes ?? payload?.cuisine_types);
+			const latitudeValue = toNumberOrNull(payload?.latitude ?? payload?.lat);
+			const longitudeValue = toNumberOrNull(payload?.longitude ?? payload?.lng);
 			const imgFile = payload?.imgFile || payload?.image || payload?.imageFile || null;
 
 			form = new FormData();
@@ -404,6 +439,8 @@ const merchantAPI = {
 				dataPart.openingHours = backendOpeningHours;
 			}
 			if (cuisineTypes.length) dataPart.cuisineTypes = cuisineTypes;
+			if (latitudeValue !== null) dataPart.latitude = latitudeValue;
+			if (longitudeValue !== null) dataPart.longitude = longitudeValue;
 			
 			if (!Object.keys(dataPart).length && !imgFile) {
 				throw new Error("Không có thông tin nào để cập nhật.");
