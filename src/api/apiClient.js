@@ -7,7 +7,7 @@ import { getToken } from '../utils/tokenUtils';
 const isDev = import.meta.env.DEV;
 const API_BASE_URL = isDev 
   ? '/api'  // Sử dụng proxy trong dev mode để tránh CORS
-  : import.meta.env.VITE_API_BASE_URL || 'https://themselves-resolve-routing-ricky.trycloudflare.com/potato-api';
+  : import.meta.env.VITE_API_BASE_URL || 'https://trustees-logical-seed-modes.trycloudflare.com/potato-api';
 
 // Debug: log baseURL một lần để kiểm tra
 if (typeof window !== 'undefined') {

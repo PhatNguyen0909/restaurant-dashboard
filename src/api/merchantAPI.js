@@ -682,6 +682,27 @@ const merchantAPI = {
 		});
 		return res?.data?.data ?? res?.data;
 	},
+
+	// Upload transaction proof for registration payment
+	uploadTransactionProof: async (merchantName, imgFile) => {
+		if (!merchantName || !String(merchantName).trim()) {
+			throw new Error('merchantName is required');
+		}
+		if (!imgFile) {
+			throw new Error('imgFile is required');
+		}
+		
+		const formData = new FormData();
+		formData.append('merchantName', String(merchantName).trim());
+		formData.append('imgFile', imgFile);
+		
+		const res = await apiClient.post('/merchant/upload-transaction-proof', formData, {
+			headers: {
+				'Content-Type': 'multipart/form-data',
+			},
+		});
+		return res?.data?.data ?? res?.data;
+	},
 };
 
 export default merchantAPI;

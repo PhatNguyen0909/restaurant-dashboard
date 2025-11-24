@@ -25,6 +25,10 @@ const normalizeFeedback = (feedback) => {
     ?? [customer.firstName, customer.lastName].filter(Boolean).join(' ')
     ?? 'Khách hàng';
 
+  // Normalize images
+  const rawImages = feedback.imgUrl ?? feedback.images ?? feedback.imageUrls ?? feedback.photos ?? [];
+  const images = Array.isArray(rawImages) ? rawImages.filter(img => img && typeof img === 'string') : [];
+
   return {
     id: feedback.id ?? feedback.feedbackId ?? feedback._id ?? `fb-${Date.now()}`,
     customerName: fullName,
@@ -33,6 +37,7 @@ const normalizeFeedback = (feedback) => {
     reply: feedback.reply ?? feedback.merchantReply ?? feedback.response ?? '',
     createdAt: feedback.createdAt ?? feedback.created_at ?? feedback.date ?? new Date().toISOString(),
     orderId: feedback.orderId ?? feedback.order_id ?? feedback.orderNumber ?? null,
+    images: images,
   };
 };
 
@@ -53,6 +58,92 @@ const StarRating = ({ rating }) => {
   );
 };
 
+const ImageGallery = ({ images }) => {
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  if (!images || images.length === 0) return null;
+
+  const openLightbox = (index) => {
+    setLightboxIndex(index);
+    setLightboxOpen(true);
+  };
+
+  const closeLightbox = () => {
+    setLightboxOpen(false);
+  };
+
+  const nextImage = () => {
+    setLightboxIndex((prev) => (prev + 1) % images.length);
+  };
+
+  const prevImage = () => {
+    setLightboxIndex((prev) => (prev - 1 + images.length) % images.length);
+  };
+
+  return (
+    <>
+      <div className="feedback-images">
+        {images.slice(0, 4).map((img, idx) => (
+          <div 
+            key={idx} 
+            className="feedback-image-wrapper"
+            onClick={() => openLightbox(idx)}
+          >
+            <img src={img} alt={`Đánh giá ${idx + 1}`} className="feedback-image" />
+            {idx === 3 && images.length > 4 && (
+              <div className="feedback-image-overlay">
+                +{images.length - 4}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Lightbox */}
+      {lightboxOpen && (
+        <div className="feedback-lightbox" onClick={closeLightbox}>
+          <button className="lightbox-close" onClick={closeLightbox}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path d="M6 6L18 18M18 6L6 18" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+          </button>
+          
+          {images.length > 1 && (
+            <>
+              <button 
+                className="lightbox-prev" 
+                onClick={(e) => { e.stopPropagation(); prevImage(); }}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <path d="M15 18L9 12L15 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+              <button 
+                className="lightbox-next" 
+                onClick={(e) => { e.stopPropagation(); nextImage(); }}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <path d="M9 18L15 12L9 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </>
+          )}
+
+          <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
+            <img src={images[lightboxIndex]} alt={`Đánh giá ${lightboxIndex + 1}`} />
+            {images.length > 1 && (
+              <div className="lightbox-counter">
+                {lightboxIndex + 1} / {images.length}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
 const Feedback = () => {
   const [feedbacks, setFeedbacks] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -61,6 +152,8 @@ const Feedback = () => {
   const [replyText, setReplyText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [filter, setFilter] = useState('all'); // all, replied, pending
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 4;
 
   const fetchFeedbacks = useCallback(async () => {
     setLoading(true);
@@ -124,10 +217,28 @@ const Feedback = () => {
     return true;
   });
 
+  // Pagination logic
+  const totalPages = Math.ceil(filteredFeedbacks.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedFeedbacks = filteredFeedbacks.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter]);
+
   const getFilterCount = (filterType) => {
     if (filterType === 'replied') return feedbacks.filter(fb => fb.reply).length;
     if (filterType === 'pending') return feedbacks.filter(fb => !fb.reply).length;
     return feedbacks.length;
+  };
+
+  const goToPage = (page) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   return (
@@ -203,7 +314,7 @@ const Feedback = () => {
           </div>
         )}
 
-        {filteredFeedbacks.map(feedback => (
+        {paginatedFeedbacks.map(feedback => (
           <div key={feedback.id} className="feedback-card">
             <div className="feedback-card-header">
               <div className="feedback-customer">
@@ -220,6 +331,11 @@ const Feedback = () => {
 
             <div className="feedback-card-body">
               <p className="feedback-comment">{feedback.comment}</p>
+              
+              {/* Image Gallery */}
+              {feedback.images && feedback.images.length > 0 && (
+                <ImageGallery images={feedback.images} />
+              )}
               
               {feedback.orderId && (
                 <div className="feedback-order-ref">
@@ -291,6 +407,78 @@ const Feedback = () => {
           </div>
         ))}
       </div>
+
+      {/* Pagination */}
+      {!loading && filteredFeedbacks.length > 0 && totalPages > 1 && (
+        <div className="feedback-pagination">
+          <button
+            className="pagination-btn"
+            onClick={() => goToPage(currentPage - 1)}
+            disabled={currentPage === 1}
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path
+                d="M12.5 15L7.5 10L12.5 5"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span className="pagination-btn-text">Trước</span>
+          </button>
+
+          <div className="pagination-numbers">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+              // Show first page, last page, current page, and pages around current
+              const showPage = 
+                page === 1 || 
+                page === totalPages || 
+                (page >= currentPage - 1 && page <= currentPage + 1);
+              
+              const showEllipsisBefore = page === currentPage - 2 && currentPage > 3;
+              const showEllipsisAfter = page === currentPage + 2 && currentPage < totalPages - 2;
+
+              if (showEllipsisBefore || showEllipsisAfter) {
+                return (
+                  <span key={page} className="pagination-ellipsis">
+                    ...
+                  </span>
+                );
+              }
+
+              if (!showPage) return null;
+
+              return (
+                <button
+                  key={page}
+                  className={`pagination-number ${page === currentPage ? 'active' : ''}`}
+                  onClick={() => goToPage(page)}
+                >
+                  {page}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            className="pagination-btn"
+            onClick={() => goToPage(currentPage + 1)}
+            disabled={currentPage === totalPages}
+          >
+            <span className="pagination-btn-text">Sau</span>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path
+                d="M7.5 15L12.5 10L7.5 5"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {/* Reply Modal */}
       {replyModal.open && replyModal.feedback && (

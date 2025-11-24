@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import './Order.css';
 import merchantAPI from "../../api/merchantAPI";
 import { assets } from "../../assets/assets";
+import DroneMap from "../../components/DroneMap/DroneMap";
 
 const toNumber = (value, fallback = 0) => {
 	const num = Number(value);
@@ -98,174 +99,140 @@ const normalizeOption = (opt) => {
 		?? opt.option_value_name
 		?? opt.optionValue
 		?? opt.optionName
-		?? '';
-	const extra = toNumber(
-		opt.extra_price
-			?? opt.extraPrice
-			?? opt.price
-			?? opt.amount
-			?? opt.optionPrice
-			?? opt.priceEach
-			?? 0,
-	);
+		?? opt.value;
+	
+	if (!name) return null;
+
 	return {
-		option: name || 'Tùy chọn',
-		extra_price: extra,
+		option: name,
+		extra_price: toNumber(opt.extra_price ?? opt.extraPrice ?? opt.price ?? 0)
 	};
 };
 
-const normalizeItem = (item) => {
-	if (!item) return null;
-	const qty = toNumber(
-		item.quantity
-			?? item.qty
-			?? item.count
-			?? item.menuItemQuantity
-			?? 1,
-		1,
-	) || 1;
-	const base = toNumber(
-		item.base_price
-			?? item.basePrice
-			?? item.price
-			?? item.unitPrice
-			?? item.menuItemBasePrice
-			?? item.priceEach
-			?? 0,
-	);
-	const subtotal = toNumber(
-		item.subtotal
-			?? item.line_total
-			?? item.totalPrice
-			?? item.menuItemTotalPrice
-			?? base * qty,
-	);
-	const optionsRaw = item.options
-		?? item.optionSelections
-		?? item.selectedOptions
-		?? item.option_items
-		?? item.optionValues
-		?? item.OptionValues
-		?? [];
-	const options = Array.isArray(optionsRaw) ? optionsRaw.map(normalizeOption).filter(Boolean) : [];
-	return {
-		dish_id: item.dish_id ?? item.dishId ?? item.id ?? item.menuItemId ?? item.itemId ?? item.menuItem ?? null,
-		name: item.name
-			?? item.dish_name
-			?? item.dishName
-			?? item.itemName
-			?? item.menuItemName
-			?? 'Sản phẩm',
-		quantity: qty,
-		base_price: base,
-		subtotal,
-		note: item.note ?? item.notes ?? item.itemNote ?? item.item_note ?? item.remark ?? '',
-		options,
-	};
+// Geocoding helper
+const geocodeAddress = async (address) => {
+    if (!address || address.trim().length < 3) return null
+    
+    // Fallback coordinates for common districts in HCMC
+    const districtDefaults = {
+      'q1': { lat: 10.7769, lng: 106.7009, name: 'Quận 1' },
+      'quan 1': { lat: 10.7769, lng: 106.7009, name: 'Quận 1' },
+      'quận 1': { lat: 10.7769, lng: 106.7009, name: 'Quận 1' },
+      'q2': { lat: 10.7875, lng: 106.7399, name: 'Quận 2' },
+      'q3': { lat: 10.7866, lng: 106.6831, name: 'Quận 3' },
+      'q4': { lat: 10.7628, lng: 106.7032, name: 'Quận 4' },
+      'q5': { lat: 10.7542, lng: 106.6662, name: 'Quận 5' },
+      'q6': { lat: 10.7471, lng: 106.6357, name: 'Quận 6' },
+      'q7': { lat: 10.7355, lng: 106.7217, name: 'Quận 7' },
+      'q8': { lat: 10.7376, lng: 106.6761, name: 'Quận 8' },
+      'quan 8': { lat: 10.7376, lng: 106.6761, name: 'Quận 8' },
+      'quận 8': { lat: 10.7376, lng: 106.6761, name: 'Quận 8' },
+      'q10': { lat: 10.7726, lng: 106.6677, name: 'Quận 10' },
+      'q11': { lat: 10.7632, lng: 106.6503, name: 'Quận 11' },
+      'q12': { lat: 10.8563, lng: 106.6717, name: 'Quận 12' },
+      'binh thanh': { lat: 10.8142, lng: 106.7068, name: 'Bình Thạnh' },
+      'tan binh': { lat: 10.8004, lng: 106.6524, name: 'Tân Bình' },
+      'phu nhuan': { lat: 10.7991, lng: 106.6831, name: 'Phú Nhuận' },
+      'thu duc': { lat: 10.8505, lng: 106.7620, name: 'Thủ Đức' },
+    }
+
+    // Check if address matches a known district (case insensitive)
+    const normalizedAddr = address.toLowerCase().trim()
+    for (const [key, coords] of Object.entries(districtDefaults)) {
+      if (normalizedAddr.includes(key)) {
+        return { lat: coords.lat, lng: coords.lng }
+      }
+    }
+
+    // Try Nominatim geocoding
+    try {
+      // Enhance short addresses with "Ho Chi Minh" for better results
+      const enhancedAddress = normalizedAddr.includes('hcm') || normalizedAddr.includes('ho chi minh') 
+        ? address 
+        : `${address}, Ho Chi Minh City, Vietnam`
+        
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(enhancedAddress)}&countrycodes=vn&limit=1&accept-language=vi`
+      )
+      const data = await response.json()
+      if (data && data.length > 0) {
+        return {
+          lat: parseFloat(data[0].lat),
+          lng: parseFloat(data[0].lon)
+        }
+      }
+    } catch (error) {
+      console.error('Geocoding error:', error)
+    }
+    
+    // If all fails, return HCMC center as last resort
+    return { lat: 10.8231, lng: 106.6297 }
+}
+
+const resolveErrorMessage = (err, defaultMsg) => {
+    return err?.response?.data?.message || err?.message || defaultMsg;
 };
 
-const normalizeItems = (itemsRaw) => {
-	if (!Array.isArray(itemsRaw)) return [];
-	return itemsRaw.map(normalizeItem).filter(Boolean);
-};
-
-const normalizeOrder = (order) => {
-	if (!order || typeof order !== 'object') return null;
-	const rawStatus = order.status ?? order.orderStatus ?? order.state ?? order.order_state ?? order.progress;
-	const status = normalizeStatus(rawStatus);
-	const detailId = extractOrderId(order);
-
-		const customer = order.customer ?? order.customerInfo ?? order.user ?? {};
-		const composedCustomerName = [customer.firstName, customer.lastName].filter(Boolean).join(' ') || undefined;
-		const fullName = order.full_name
-			?? order.fullName
-			?? customer.fullName
-			?? customer.name
-			?? composedCustomerName
-			?? 'Khách hàng';
-
-	const itemsRaw = order.items ?? order.orderItems ?? order.order_items ?? order.cartItems ?? [];
-	const items = normalizeItems(itemsRaw);
-
-	const payment = order.payment ?? order.paymentInfo ?? {};
-
-	const createdAt = order.created_at
-		?? order.createdAt
-		?? order.created_date
-		?? order.createdDate
-		?? order.order_date
-		?? order.orderDate;
-
-	return {
-		id: order.id
-			?? order.orderId
-			?? order._id
-			?? order.code
-			?? order.order_id
-			?? order.uuid
-			?? `${Date.now()}-${Math.random()}`,
-		detailId,
-		status,
-		statusRaw: rawStatus,
-		statusLabel: order.status_label ?? order.statusLabel ?? order.status_name ?? order.statusName ?? rawStatus ?? status,
-		created_at: createdAt ?? new Date().toISOString(),
-		full_name: fullName,
-		phone: order.phone ?? order.phoneNumber ?? customer.phone ?? customer.phoneNumber ?? '',
-		address: order.address ?? order.deliveryAddress ?? customer.address ?? '',
-		note: order.note ?? order.notes ?? order.customerNote ?? order.customer_note ?? order.comment ?? order.remark ?? '',
-		total_amount: toNumber(order.total_amount ?? order.totalAmount ?? order.amount ?? order.grandTotal ?? order.total ?? 0),
-		items,
-		payment: {
-			method: payment.method ?? payment.name ?? payment.type ?? payment.paymentMethod ?? 'N/A',
-			status: payment.status ?? payment.state ?? payment.paymentStatus ?? 'unknown',
-		},
-	};
-};
-
-const normalizeOrders = (orders) => {
-	if (!Array.isArray(orders)) return [];
-	return orders.map(normalizeOrder).filter(Boolean);
+const normalizeItems = (items) => {
+    if (!Array.isArray(items)) return [];
+    return items.map(item => ({
+        name: item.name || item.productName || 'Món ăn',
+        quantity: toNumber(item.quantity || item.qty),
+        base_price: toNumber(item.price || item.basePrice),
+        options: (item.options || []).map(normalizeOption).filter(Boolean),
+        note: item.note || ''
+    }));
 };
 
 const extractDetailItems = (detail) => {
-	if (!detail) return [];
-	if (Array.isArray(detail)) return detail;
-	const candidates = [
-		detail.items,
-		detail.orderItems,
-		detail.order_items,
-		detail.menuItems,
-		detail.menu_items,
-		detail.data,
-		detail.results,
-		detail.records,
-		detail.content,
-	];
-	for (const candidate of candidates) {
-		if (Array.isArray(candidate)) return candidate;
-	}
-	return [];
+    if (!detail) return [];
+    return detail.items || detail.orderItems || [];
 };
 
-const filterOrders = (orders, tab) => {
-	if (tab === 'preparing') return orders.filter(o => o.status === 'pending');
-	if (tab === 'delivering') return orders.filter(o => o.status === 'delivering');
-	return orders.filter(o => o.status === 'delivered' || o.status === 'canceled');
+const normalizeOrder = (order) => {
+    if (!order) return null;
+    return {
+        id: extractOrderId(order),
+        status: normalizeStatus(order.status),
+        statusRaw: order.status,
+        statusLabel: statusLabelVN(normalizeStatus(order.status)),
+        created_at: order.createdAt || order.created_at,
+        full_name: order.fullName || order.full_name || order.customerName || 'Khách lẻ',
+        phone: order.phone || order.phoneNumber || '',
+        address: order.address || order.deliveryAddress || '',
+        note: order.note || order.notes || '',
+        total_amount: toNumber(order.totalAmount || order.total_amount),
+        items: normalizeItems(order.items || order.orderItems),
+        payment: {
+            method: order.paymentMethod || order.payment_method || 'COD',
+            status: order.paymentStatus || order.payment_status || 'PENDING'
+        },
+        detailId: order._id || order.id // Keep original ID for API calls
+    };
+};
+
+const normalizeOrders = (list) => {
+    if (!Array.isArray(list)) return [];
+    return list.map(normalizeOrder);
+};
+
+const filterOrders = (list, tab) => {
+    if (!Array.isArray(list)) return [];
+    return list.filter(order => {
+        const status = normalizeStatus(order.status);
+        if (tab === 'preparing') return status === 'pending';
+        if (tab === 'delivering') return status === 'delivering';
+        if (tab === 'history') return status === 'delivered' || status === 'canceled';
+        return true;
+    });
 };
 
 const getAdvanceAction = (status) => {
-	if (status === 'pending') {
-		return { backendStatus: 'Delivering', label: 'Sẵn sàng' };
-	}
-	if (status === 'delivering') {
-		return { backendStatus: 'Completed', label: 'Hoàn thành' };
-	}
-	return null;
+    const s = normalizeStatus(status);
+    if (s === 'pending') return { label: 'Giao hàng', backendStatus: 'DELIVERING' };
+    if (s === 'delivering') return { label: 'Hoàn thành', backendStatus: 'COMPLETED' };
+    return null;
 };
-
-const resolveErrorMessage = (error, fallback) => (
-	error?.response?.data?.message || error?.message || fallback
-);
 
 const Order = () => {
 	const [tab, setTab] = useState('preparing');
@@ -273,6 +240,27 @@ const Order = () => {
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState('');
 	const [detailModal, setDetailModal] = useState({ open: false, order: null });
+	const [merchantInfo, setMerchantInfo] = useState(null);
+	const [merchantCoords, setMerchantCoords] = useState(null);
+	const [deliveryCoords, setDeliveryCoords] = useState(null);
+	const [geocoding, setGeocoding] = useState(false);
+
+	useEffect(() => {
+		const fetchMerchantInfo = async () => {
+			try {
+				const info = await merchantAPI.getMyMerchant();
+				setMerchantInfo(info);
+				// Pre-geocode merchant address
+				if (info?.address) {
+					const coords = await geocodeAddress(info.address);
+					if (coords) setMerchantCoords(coords);
+				}
+			} catch (err) {
+				console.error('Failed to fetch merchant info', err);
+			}
+		};
+		fetchMerchantInfo();
+	}, []);
 
 		const fetchOrders = useCallback(async () => {
 			setLoading(true);
@@ -343,14 +331,19 @@ const Order = () => {
 
 		const filteredOrders = useMemo(() => filterOrders(orders, tab), [orders, tab]);
 
-	const openDetailModal = useCallback((order) => {
+	const openDetailModal = useCallback(async (order) => {
 		setDetailModal({ open: true, order });
+		setDeliveryCoords(null);
+		setGeocoding(true);
+
+		if (order.address) {
+			const coords = await geocodeAddress(order.address);
+			if (coords) setDeliveryCoords(coords);
+		}
+		setGeocoding(false);
 		
-		if (order.detailId && !order.detailLoaded && !order.detailLoading) {
-			setOrders(prev => prev.map(o => 
-				o.id === order.id ? { ...o, detailLoading: true, detailError: undefined } : o
-			));
-			fetchOrderDetail(order.id, order.detailId);
+		if (!order.detailLoaded && !order.detailLoading) {
+			fetchOrderDetail(order.id, order.detailId || order.id);
 		}
 	}, [fetchOrderDetail]);
 
@@ -558,6 +551,36 @@ const Order = () => {
 										</div>
 									)}
 								</div>
+							</div>
+
+							{/* Drone Map Section */}
+							<div className="order-modal-section">
+								<h3>Theo dõi đơn hàng</h3>
+								{geocoding && <div className="order-loading-text">Đang xác định vị trí...</div>}
+								{!geocoding && merchantCoords && deliveryCoords && (
+									<DroneMap
+										merchantLocation={{
+											lat: merchantCoords.lat,
+											lng: merchantCoords.lng,
+											name: merchantInfo?.name || 'Cửa hàng'
+										}}
+										deliveryLocation={{
+											lat: deliveryCoords.lat,
+											lng: deliveryCoords.lng,
+											address: detailModal.order.address
+										}}
+										orderStatus={(() => {
+											const s = normalizeStatus(detailModal.order.status);
+											if (s === 'delivering') return 'DELIVERING';
+											if (s === 'delivered') return 'COMPLETED';
+											return 'CONFIRMED';
+										})()}
+										autoAnimate={true}
+									/>
+								)}
+								{!geocoding && (!merchantCoords || !deliveryCoords) && (
+									<div className="order-error-text">Không thể hiển thị bản đồ do thiếu thông tin vị trí.</div>
+								)}
 							</div>
 
 							<div className="order-modal-section">
