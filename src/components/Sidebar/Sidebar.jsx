@@ -84,6 +84,14 @@ const Sidebar = () => {
           </svg>
           <span>Option Groups</span>
         </NavLink>
+
+        <NavLink to='/feedback' className='sidebar-option'>
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M18 10C18 14.4183 14.4183 18 10 18C8.46667 18 7.06667 17.5667 5.86667 16.8333L2 18V14C2 9.58172 5.58172 6 10 6C14.4183 6 18 9.58172 18 10Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+            <path d="M7 10H7.01M10 10H10.01M13 10H13.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+          <span>Feedback</span>
+        </NavLink>
       </div>
 
       {/* User Info */}

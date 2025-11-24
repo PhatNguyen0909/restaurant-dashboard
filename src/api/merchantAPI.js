@@ -587,21 +587,61 @@ const merchantAPI = {
 			throw new Error("Không lấy được chi tiết đơn hàng");
 		},
 
-		// Update order status
-		updateOrderStatus: async (orderId, status, cancelReason = undefined) => {
-			if (!orderId) throw new Error('orderId is required');
-			const cleanStatus = String(status ?? '').trim();
-			if (!cleanStatus) throw new Error('status is required');
-			const payload = { status: cleanStatus };
-			if (/^cancel/i.test(cleanStatus) && cancelReason !== undefined) {
-				payload.cancelReason = String(cancelReason ?? '');
-			}
-			const res = await apiClient.patch(`/merchant/order/${orderId}`, payload, {
-				headers: { ...buildMerchantRoleHeaders() },
-			});
-			return res?.data?.data ?? res?.data;
-		},
-	
+
+	// Update order status
+	updateOrderStatus: async (orderId, status, cancelReason = undefined) => {
+		if (!orderId) throw new Error('orderId is required');
+		const cleanStatus = String(status ?? '').trim();
+		if (!cleanStatus) throw new Error('status is required');
+		const payload = { status: cleanStatus };
+		if (/^cancel/i.test(cleanStatus) && cancelReason !== undefined) {
+			payload.cancelReason = String(cancelReason ?? '');
+		}
+		const res = await apiClient.patch(`/merchant/order/${orderId}`, payload, {
+			headers: { ...buildMerchantRoleHeaders() },
+		});
+		return res?.data?.data ?? res?.data;
+	},
+
+	// Get all feedbacks
+	getFeedbacks: async () => {
+		const res = await apiClient.get('/merchant/feedbacks', {
+			headers: { ...buildMerchantRoleHeaders() },
+		});
+		return res?.data?.data ?? res?.data ?? [];
+	},
+
+	// Reply to a feedback
+	replyFeedback: async (feedbackId, comment) => {
+		if (!feedbackId) throw new Error('feedbackId is required');
+		if (!comment || !String(comment).trim()) throw new Error('comment is required');
+		const payload = { comment: String(comment).trim() };
+		const res = await apiClient.post(`/merchant/feedbacks/${feedbackId}/reply`, payload, {
+			headers: { ...buildMerchantRoleHeaders() },
+		});
+		return res?.data?.data ?? res?.data;
+	},
+
+	// Upload transaction proof for registration payment
+	uploadTransactionProof: async (merchantName, imgFile) => {
+		if (!merchantName || !String(merchantName).trim()) {
+			throw new Error('merchantName is required');
+		}
+		if (!imgFile) {
+			throw new Error('imgFile is required');
+		}
+		
+		const formData = new FormData();
+		formData.append('merchantName', String(merchantName).trim());
+		formData.append('imgFile', imgFile);
+		
+		const res = await apiClient.post('/merchant/upload-transaction-proof', formData, {
+			headers: {
+				'Content-Type': 'multipart/form-data',
+			},
+		});
+		return res?.data?.data ?? res?.data;
+	},
 };
 
 export default merchantAPI;

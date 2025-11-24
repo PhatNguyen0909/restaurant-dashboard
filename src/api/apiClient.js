@@ -6,8 +6,11 @@ import { getToken } from '../utils/tokenUtils';
 const envApi = import.meta?.env?.VITE_API_BASE_URL?.trim();
 const isProd = !!import.meta?.env?.PROD;
 
-// Direct to serverless function path (Vercel catch-all: /api/[...proxy])
-const API_BASE_URL = envApi || (isProd ? '/api' : '/api');
+// Sử dụng biến môi trường để cấu hình API URL
+const isDev = import.meta.env.DEV;
+const API_BASE_URL = isDev 
+  ? '/api'  // Sử dụng proxy trong dev mode để tránh CORS
+  : import.meta.env.VITE_API_BASE_URL || 'https://trustees-logical-seed-modes.trycloudflare.com/potato-api';
 
 // Debug: log baseURL
 if (typeof window !== 'undefined') {
