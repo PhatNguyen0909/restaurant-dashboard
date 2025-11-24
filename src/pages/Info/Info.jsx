@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import './Info.css';
 import merchantAPI from '../../api/merchantAPI';
 import userAPI from '../../api/userAPI';
+import { saveMerchantCoordinates } from '../../utils/locationStorage';
 
 // Weekday helpers and transformers
 const WEEK_ORDER = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
@@ -153,6 +154,8 @@ const Info = () => {
     cuisineTypes: [],
     imageFile: null,
     imagePreview: '',
+    latitude: '',
+    longitude: '',
   });
   const [cuisineOptions, setCuisineOptions] = useState([]);
   const [cuisineLoading, setCuisineLoading] = useState(false);
@@ -167,6 +170,31 @@ const Info = () => {
   const [openStatusUpdating, setOpenStatusUpdating] = useState(false);
   const [timeTick, setTimeTick] = useState(() => Date.now());
 
+  const parseCoordinate = (value) => {
+    if (value === null || value === undefined) return null;
+    const raw = typeof value === 'string' ? value.trim() : value;
+    if (raw === '') return null;
+    const normalized = typeof raw === 'string' ? raw.replace(',', '.') : raw;
+    const num = Number(normalized);
+    return Number.isFinite(num) ? num : null;
+  };
+
+  const formatCoordinateInput = (value) => {
+    if (value === null || value === undefined) return '';
+    const parsed = parseCoordinate(value);
+    return parsed === null ? String(value) : String(parsed);
+  };
+
+  const isLatitude = (value) => {
+    const num = parseCoordinate(value);
+    return num !== null && num >= -90 && num <= 90;
+  };
+
+  const isLongitude = (value) => {
+    const num = parseCoordinate(value);
+    return num !== null && num >= -180 && num <= 180;
+  };
+
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -174,6 +202,11 @@ const Info = () => {
         const res = await merchantAPI.getMyMerchant();
         if (mounted) {
           setData(res || null);
+          const latitude = parseCoordinate(res?.latitude);
+          const longitude = parseCoordinate(res?.longitude);
+          if (latitude != null && longitude != null) {
+            saveMerchantCoordinates({ latitude, longitude });
+          }
           const formInit = {
             introduction: res?.introduction || res?.description || '',
             address: res?.address || '',
@@ -181,6 +214,8 @@ const Info = () => {
             cuisineTypes: Array.isArray(res?.cuisineTypes) ? res.cuisineTypes : (Array.isArray(res?.cuisine_types) ? res.cuisine_types : []),
             imageFile: null,
             imagePreview: resolveImageUrl(res),
+            latitude: formatCoordinateInput(latitude),
+            longitude: formatCoordinateInput(longitude),
           };
           setForm(formInit);
         }
@@ -223,6 +258,14 @@ const Info = () => {
     }, 60000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    const latitude = parseCoordinate(data?.latitude);
+    const longitude = parseCoordinate(data?.longitude);
+    if (latitude != null && longitude != null) {
+      saveMerchantCoordinates({ latitude, longitude });
+    }
+  }, [data?.latitude, data?.longitude]);
 
   const openingHours = useMemo(() => {
     const map = data?.openingHours || data?.opening_hours || {};
@@ -309,6 +352,17 @@ const Info = () => {
         [normalized]: value,
       },
     }));
+  };
+
+  const updateCoordinateField = (field) => (event) => {
+    const value = event?.target?.value ?? '';
+    setForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+    if (!editing) {
+      setEditing(true);
+    }
   };
 
   const handleToggleOpenStatus = async () => {
@@ -437,19 +491,37 @@ const Info = () => {
         openingHours: ensureWeeklyOpeningHours(data?.openingHours || data?.opening_hours || {}),
         cuisineTypes: Array.isArray(data?.cuisineTypes) ? data.cuisineTypes : (Array.isArray(data?.cuisine_types) ? data.cuisine_types : []),
         image: resolveImageUrl(data),
+        latitude: parseCoordinate(data?.latitude),
+        longitude: parseCoordinate(data?.longitude),
       };
+      const desiredLatitude = parseCoordinate(form.latitude);
+      const desiredLongitude = parseCoordinate(form.longitude);
       const desired = {
         introduction: form.introduction,
         address: form.address,
         openingHours: ensureWeeklyOpeningHours(form.openingHours),
         cuisineTypes: Array.isArray(form.cuisineTypes) ? form.cuisineTypes : String(form.cuisineTypes || '').split(',').map(s=>s.trim()).filter(Boolean),
         imageFile: form.imageFile,
+        latitude: desiredLatitude,
+        longitude: desiredLongitude,
       };
 
       const missingDays = WEEK_ORDER.filter((day) => !String(desired.openingHours?.[day] ?? '').trim());
       if (missingDays.length > 0) {
         const pretty = missingDays.map((day) => day.charAt(0).toUpperCase() + day.slice(1));
         alert(`Vui lòng nhập thời gian cho các ngày: ${pretty.join(', ')}`);
+        return;
+      }
+
+      if (desiredLatitude == null || desiredLatitude < -90 || desiredLatitude > 90) {
+        alert('Vui lòng nhập vĩ độ hợp lệ (trong khoảng -90 đến 90).');
+        setSaving(false);
+        return;
+      }
+
+      if (desiredLongitude == null || desiredLongitude < -180 || desiredLongitude > 180) {
+        alert('Vui lòng nhập kinh độ hợp lệ (trong khoảng -180 đến 180).');
+        setSaving(false);
         return;
       }
 
@@ -472,6 +544,8 @@ const Info = () => {
         address: desired.address ?? current.address ?? '',
         openingHours: backendOpeningHours,
         cuisineTypes: desired.cuisineTypes?.length ? desired.cuisineTypes : (current.cuisineTypes ?? []),
+        latitude: desiredLatitude,
+        longitude: desiredLongitude,
       };
       
       // Append data as JSON blob để backend parse chính xác
@@ -509,6 +583,8 @@ const Info = () => {
         openingHours: desired.openingHours,
         cuisineTypes: desired.cuisineTypes,
         imgFile: desired.imageFile,
+        latitude: desiredLatitude,
+        longitude: desiredLongitude,
       };
 
       await merchantAPI.updateMyInfo(formData);
@@ -526,6 +602,8 @@ const Info = () => {
 
       if (refreshed) {
         setData(refreshed || null);
+        const refreshedLat = parseCoordinate(refreshed?.latitude);
+        const refreshedLng = parseCoordinate(refreshed?.longitude);
         setForm({
           introduction: refreshed?.introduction || refreshed?.description || '',
           address: refreshed?.address || '',
@@ -533,7 +611,12 @@ const Info = () => {
           cuisineTypes: Array.isArray(refreshed?.cuisineTypes) ? refreshed.cuisineTypes : (Array.isArray(refreshed?.cuisine_types) ? refreshed.cuisine_types : []),
           imageFile: null,
           imagePreview: resolveImageUrl(refreshed),
+          latitude: formatCoordinateInput(refreshedLat),
+          longitude: formatCoordinateInput(refreshedLng),
         });
+        if (refreshedLat != null && refreshedLng != null) {
+          saveMerchantCoordinates({ latitude: refreshedLat, longitude: refreshedLng });
+        }
         setTimeTick(Date.now());
       } else {
         setData((prev) => {
@@ -562,13 +645,20 @@ const Info = () => {
             next.imageUrl = preview;
             next.logoUrl = preview;
           }
+          if (desiredLatitude != null) next.latitude = desiredLatitude;
+          if (desiredLongitude != null) next.longitude = desiredLongitude;
           return next;
         });
         setForm((prev) => ({
           ...prev,
           imageFile: null,
           imagePreview: payload.imgFile && form.imagePreview ? form.imagePreview : prev.imagePreview,
+          latitude: formatCoordinateInput(desiredLatitude),
+          longitude: formatCoordinateInput(desiredLongitude),
         }));
+        if (desiredLatitude != null && desiredLongitude != null) {
+          saveMerchantCoordinates({ latitude: desiredLatitude, longitude: desiredLongitude });
+        }
       }
       setTimeTick(Date.now());
       setEditing(false);
@@ -753,6 +843,33 @@ const Info = () => {
             />
           </div>
 
+          <div className="info-field">
+            <label className="field-label">Tọa độ GPS</label>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 220px' }}>
+                <span className="field-sub-label">Vĩ độ (Latitude)</span>
+                <input
+                  type="text"
+                  className="field-input"
+                  value={form.latitude}
+                  onChange={updateCoordinateField('latitude')}
+                  placeholder="VD: 10.7598249"
+                />
+              </div>
+              <div style={{ flex: '1 1 220px' }}>
+                <span className="field-sub-label">Kinh độ (Longitude)</span>
+                <input
+                  type="text"
+                  className="field-input"
+                  value={form.longitude}
+                  onChange={updateCoordinateField('longitude')}
+                  placeholder="VD: 106.6812712"
+                />
+              </div>
+            </div>
+            <small className="field-hint">Nhập tọa độ chính xác để hỗ trợ điều hướng Drone.</small>
+          </div>
+
           {/* Description Field */}
           <div className="info-field">
             <label className="field-label">Mô tả</label>
@@ -810,6 +927,8 @@ const Info = () => {
                 cuisineTypes,
                 imageFile: null,
                 imagePreview: resolveImageUrl(data),
+                latitude: formatCoordinateInput(parseCoordinate(data?.latitude)),
+                longitude: formatCoordinateInput(parseCoordinate(data?.longitude)),
               });
             }}
           >

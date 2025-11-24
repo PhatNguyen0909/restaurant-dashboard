@@ -3,6 +3,7 @@ import './Order.css';
 import merchantAPI from "../../api/merchantAPI";
 import { assets } from "../../assets/assets";
 import DroneMap from "../../components/DroneMap/DroneMap";
+import { loadMerchantCoordinates, saveMerchantCoordinates } from "../../utils/locationStorage";
 
 const toNumber = (value, fallback = 0) => {
 	const num = Number(value);
@@ -189,26 +190,48 @@ const extractDetailItems = (detail) => {
     return detail.items || detail.orderItems || [];
 };
 
+const parseCoordinate = (value) => {
+	if (value === null || value === undefined || value === '') return null;
+	const num = Number(value);
+	return Number.isFinite(num) ? num : null;
+};
+
+const normalizeDroneInfo = (drone) => {
+	if (!drone || typeof drone !== 'object') return null;
+	return {
+		id: drone.id,
+		code: drone.code || drone.droneCode,
+		status: drone.status,
+		latitude: parseCoordinate(drone.latitude),
+		longitude: parseCoordinate(drone.longitude),
+	};
+};
+
 const normalizeOrder = (order) => {
-    if (!order) return null;
-    return {
-        id: extractOrderId(order),
-        status: normalizeStatus(order.status),
-        statusRaw: order.status,
-        statusLabel: statusLabelVN(normalizeStatus(order.status)),
-        created_at: order.createdAt || order.created_at,
-        full_name: order.fullName || order.full_name || order.customerName || 'Khách lẻ',
-        phone: order.phone || order.phoneNumber || '',
-        address: order.address || order.deliveryAddress || '',
-        note: order.note || order.notes || '',
-        total_amount: toNumber(order.totalAmount || order.total_amount),
-        items: normalizeItems(order.items || order.orderItems),
-        payment: {
-            method: order.paymentMethod || order.payment_method || 'COD',
-            status: order.paymentStatus || order.payment_status || 'PENDING'
-        },
-        detailId: order._id || order.id // Keep original ID for API calls
-    };
+	if (!order) return null;
+	const latitude = parseCoordinate(order.latitude || order.customerLatitude);
+	const longitude = parseCoordinate(order.longitude || order.customerLongitude);
+	return {
+		id: extractOrderId(order),
+		status: normalizeStatus(order.status),
+		statusRaw: order.status,
+		statusLabel: statusLabelVN(normalizeStatus(order.status)),
+		created_at: order.createdAt || order.created_at,
+		full_name: order.fullName || order.full_name || order.customerName || 'Khách lẻ',
+		phone: order.phone || order.phoneNumber || '',
+		address: order.address || order.deliveryAddress || '',
+		note: order.note || order.notes || '',
+		total_amount: toNumber(order.totalAmount || order.total_amount),
+		items: normalizeItems(order.items || order.orderItems),
+		payment: {
+			method: order.paymentMethod || order.payment_method || 'COD',
+			status: order.paymentStatus || order.payment_status || 'PENDING'
+		},
+		detailId: order._id || order.id,
+		customerLatitude: latitude,
+		customerLongitude: longitude,
+		drone: normalizeDroneInfo(order.drone),
+	};
 };
 
 const normalizeOrders = (list) => {
@@ -246,14 +269,29 @@ const Order = () => {
 	const [geocoding, setGeocoding] = useState(false);
 
 	useEffect(() => {
+		const cached = loadMerchantCoordinates();
+		if (cached && Number.isFinite(cached.latitude) && Number.isFinite(cached.longitude)) {
+			setMerchantCoords({ lat: cached.latitude, lng: cached.longitude });
+		}
+	}, []);
+
+	useEffect(() => {
 		const fetchMerchantInfo = async () => {
 			try {
 				const info = await merchantAPI.getMyMerchant();
 				setMerchantInfo(info);
-				// Pre-geocode merchant address
-				if (info?.address) {
+				const lat = Number(info?.latitude);
+				const lng = Number(info?.longitude);
+				if (Number.isFinite(lat) && Number.isFinite(lng)) {
+					const coords = { lat, lng };
+					setMerchantCoords(coords);
+					saveMerchantCoordinates({ latitude: lat, longitude: lng });
+				} else if (info?.address) {
 					const coords = await geocodeAddress(info.address);
-					if (coords) setMerchantCoords(coords);
+					if (coords) {
+						setMerchantCoords(coords);
+						saveMerchantCoordinates(coords);
+					}
 				}
 			} catch (err) {
 				console.error('Failed to fetch merchant info', err);
@@ -308,6 +346,9 @@ const Order = () => {
 						payment: (normalizedDetail?.payment && normalizedDetail.payment.method)
 							? normalizedDetail.payment
 							: o.payment,
+						customerLatitude: normalizedDetail?.customerLatitude ?? o.customerLatitude,
+						customerLongitude: normalizedDetail?.customerLongitude ?? o.customerLongitude,
+						drone: normalizedDetail?.drone ?? o.drone,
 						detailError: undefined,
 						detailLoaded: true,
 						detailLoading: false,
@@ -334,13 +375,18 @@ const Order = () => {
 	const openDetailModal = useCallback(async (order) => {
 		setDetailModal({ open: true, order });
 		setDeliveryCoords(null);
-		setGeocoding(true);
-
-		if (order.address) {
-			const coords = await geocodeAddress(order.address);
-			if (coords) setDeliveryCoords(coords);
-		}
 		setGeocoding(false);
+		const hasBackendCoords = Number.isFinite(order?.customerLatitude) && Number.isFinite(order?.customerLongitude);
+		if (hasBackendCoords) {
+			setDeliveryCoords({ lat: order.customerLatitude, lng: order.customerLongitude });
+		} else {
+			setGeocoding(true);
+			if (order.address) {
+				const coords = await geocodeAddress(order.address);
+				if (coords) setDeliveryCoords(coords);
+			}
+			setGeocoding(false);
+		}
 		
 		if (!order.detailLoaded && !order.detailLoading) {
 			fetchOrderDetail(order.id, order.detailId || order.id);
