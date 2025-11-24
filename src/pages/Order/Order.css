@@ -385,6 +385,13 @@
   gap: 12px;
 }
 
+.order-detail-item-drone {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #e5e7eb;
+}
+
 .order-detail-label {
   font-weight: 600;
   color: #555;

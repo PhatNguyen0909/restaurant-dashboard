@@ -568,35 +568,27 @@ const merchantAPI = {
 	// Orders
 		getOrders: async () => {
 			const baseHeaders = buildMerchantRoleHeaders();
-			const endpoints = [
-				"/merchant/my-orders",
-				"/merchant/orders",
-				"/merchant/order",
-				"/merchant/order/list",
-			];
-			let lastErr;
-			for (const path of endpoints) {
-				try {
-					const res = await apiClient.get(path, { headers: { ...baseHeaders } });
-					const raw = res?.data?.data ?? res?.data;
-					const candidateArrays = [
-						raw,
-						raw?.items,
-						raw?.orders,
-						raw?.data,
-						raw?.results,
-						raw?.content,
-						raw?.records,
-					];
-					for (const arr of candidateArrays) {
-						if (Array.isArray(arr)) return arr;
-						if (Array.isArray(arr?.items)) return arr.items;
-					}
-				} catch (err) {
-					lastErr = err;
+			// Use the merchant/my-orders endpoint as requested
+			const endpoint = "/merchant/my-orders";
+			try {
+				const res = await apiClient.get(endpoint, { headers: { ...baseHeaders } });
+				const raw = res?.data?.data ?? res?.data;
+				const candidateArrays = [
+					raw,
+					raw?.items,
+					raw?.orders,
+					raw?.data,
+					raw?.results,
+					raw?.content,
+					raw?.records,
+				];
+				for (const arr of candidateArrays) {
+					if (Array.isArray(arr)) return arr;
+					if (Array.isArray(arr?.items)) return arr.items;
 				}
+			} catch (err) {
+				throw err;
 			}
-			if (lastErr) throw lastErr;
 			return [];
 		},
 
@@ -604,24 +596,14 @@ const merchantAPI = {
 			if (orderId === undefined || orderId === null) {
 				throw new Error("orderId is required");
 			}
-			const endpoints = [
-				`/merchant/my-orders/${orderId}`,
-				`/merchant/orders/${orderId}`,
-				`/merchant/order/${orderId}`,
-				`/customer/merchant/order/${orderId}`,
-			];
 			const baseHeaders = buildMerchantRoleHeaders();
-			let lastErr;
-			for (const path of endpoints) {
-				try {
-					const res = await apiClient.get(path, { headers: { ...baseHeaders } });
-					return res?.data?.data ?? res?.data;
-				} catch (err) {
-					lastErr = err;
-				}
+			const endpoint = `/merchant/orders/${orderId}`;
+			try {
+				const res = await apiClient.get(endpoint, { headers: { ...baseHeaders } });
+				return res?.data?.data ?? res?.data;
+			} catch (err) {
+				throw err;
 			}
-			if (lastErr) throw lastErr;
-			throw new Error("Không lấy được chi tiết đơn hàng");
 		},
 
 
@@ -634,7 +616,7 @@ const merchantAPI = {
 		if (/^cancel/i.test(cleanStatus) && cancelReason !== undefined) {
 			payload.cancelReason = String(cancelReason ?? '');
 		}
-		const res = await apiClient.patch(`/merchant/order/${orderId}`, payload, {
+		const res = await apiClient.patch(`/merchant/orders/${orderId}`, payload, {
 			headers: { ...buildMerchantRoleHeaders() },
 		});
 		return res?.data?.data ?? res?.data;
@@ -678,6 +660,25 @@ const merchantAPI = {
 			},
 		});
 		return res?.data?.data ?? res?.data;
+	},
+
+	// Update drone location
+	updateDroneLocation: async (droneId, latitude, longitude) => {
+		if (!droneId) return null;
+		try {
+			// Use the admin endpoint as requested: PUT /admin/drones/{id}/update-location?latitude=...&longitude=...
+			const res = await apiClient.put(`/admin/drones/${droneId}/update-location`, null, {
+				params: {
+					latitude,
+					longitude
+				}
+			});
+			const body = res?.data?.data ?? res?.data ?? null;
+			return body;
+		} catch (err) {
+			console.error('Failed to update drone location', err);
+			return null;
+		}
 	},
 };
 
