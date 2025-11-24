@@ -1,11 +1,24 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './DroneMap.css';
+import merchantAPI from '../../api/merchantAPI';
+
+const toNumberOrNull = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+};
 
 const DroneMap = ({ 
   merchantLocation, // { lat, lng, name }
   deliveryLocation, // { lat, lng, address }
+  droneLocation,
+  droneId,
+  droneStatus,
   orderStatus = 'CONFIRMED',
-  autoAnimate = true 
+  autoAnimate = true,
+  orderKey,
+  canStartDelivery = false,
+  onStartDelivery,
 }) => {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -14,13 +27,80 @@ const DroneMap = ({
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [dronePosition, setDronePosition] = useState(0); // 0-100%
-  const animationRef = useRef(null);
-  const merchantLat = merchantLocation?.lat;
-  const merchantLng = merchantLocation?.lng;
+  const movementTimerRef = useRef(null);
+  const lastApiUpdateRef = useRef(0);
+
+
+  const [pickupArrived, setPickupArrived] = useState(false);
+
+
+  const merchantLat = toNumberOrNull(merchantLocation?.lat);
+  const merchantLng = toNumberOrNull(merchantLocation?.lng);
   const merchantName = merchantLocation?.name;
-  const deliveryLat = deliveryLocation?.lat;
-  const deliveryLng = deliveryLocation?.lng;
+  const deliveryLat = toNumberOrNull(deliveryLocation?.lat);
+  const deliveryLng = toNumberOrNull(deliveryLocation?.lng);
   const deliveryAddress = deliveryLocation?.address;
+  const droneLat = toNumberOrNull(droneLocation?.lat);
+  const droneLng = toNumberOrNull(droneLocation?.lng);
+
+  // Reset pickupArrived and dronePosition and force movement phase restart when switching to delivery phase
+  const [deliveryKey, setDeliveryKey] = useState(0);
+  useEffect(() => {
+    if (orderStatus === 'DELIVERING') {
+      setPickupArrived(false);
+      setDronePosition(0);
+      // Do NOT reset drone position to merchant, always use current drone position for both phases
+      setDeliveryKey(k => k + 1); // force movementPhaseKey to change
+    }
+  }, [orderStatus]);
+
+
+
+  // ...existing code...
+  const [liveDroneCoords, setLiveDroneCoords] = useState(() => {
+    if (droneLat === null || droneLng === null) return null;
+    return { lat: droneLat, lng: droneLng };
+  });
+  const [liveDroneStatus, setLiveDroneStatus] = useState(droneStatus ?? null);
+
+  useEffect(() => {
+    if (droneLat !== null && droneLng !== null) {
+      setLiveDroneCoords({ lat: droneLat, lng: droneLng });
+    }
+  }, [droneLat, droneLng]);
+
+  useEffect(() => {
+    setLiveDroneStatus(droneStatus ?? null);
+  }, [droneStatus]);
+
+  const effectiveDroneLat = toNumberOrNull(liveDroneCoords?.lat ?? droneLat);
+  const effectiveDroneLng = toNumberOrNull(liveDroneCoords?.lng ?? droneLng);
+  const hasDroneCoords = effectiveDroneLat !== null && effectiveDroneLng !== null;
+  const currentDroneStatus = liveDroneStatus || droneStatus;
+  const isDeliveryPhase = orderStatus === 'DELIVERING' || orderStatus === 'COMPLETED' || orderStatus === 'DRONE_ARRIVED';
+  const isPickupPhase = !isDeliveryPhase && (orderStatus === 'READY' || currentDroneStatus === 'TO_PICKUP') && hasDroneCoords;
+
+  const activeRoute = useMemo(() => {
+    if (isDeliveryPhase && merchantLat != null && merchantLng != null && deliveryLat != null && deliveryLng != null) {
+      return [
+        [merchantLat, merchantLng],
+        [deliveryLat, deliveryLng],
+      ];
+    }
+    if (isPickupPhase && hasDroneCoords && merchantLat != null && merchantLng != null) {
+      return [
+        [effectiveDroneLat, effectiveDroneLng],
+        [merchantLat, merchantLng],
+      ];
+    }
+    if (merchantLat != null && merchantLng != null && deliveryLat != null && deliveryLng != null) {
+      return [
+        [merchantLat, merchantLng],
+        [deliveryLat, deliveryLng],
+      ];
+    }
+    return [];
+  }, [isPickupPhase, isDeliveryPhase, hasDroneCoords, effectiveDroneLat, effectiveDroneLng, merchantLat, merchantLng, deliveryLat, deliveryLng]);
 
   // Check if Leaflet is loaded
   useEffect(() => {
@@ -119,8 +199,9 @@ const DroneMap = ({
     setMapReady(true);
 
     return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
+      if (movementTimerRef.current) {
+        clearInterval(movementTimerRef.current);
+        movementTimerRef.current = null;
       }
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
@@ -130,61 +211,152 @@ const DroneMap = ({
     };
   }, [mapLoaded, merchantLat, merchantLng, merchantName, deliveryLat, deliveryLng, deliveryAddress]);
 
-  // Animate drone movement
+  // Update primary route polyline based on current phase
   useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !polylineRef.current) return;
+    if (activeRoute.length < 2) return;
+
+    polylineRef.current.setLatLngs(activeRoute);
+    polylineRef.current.setStyle(isPickupPhase
+      ? { color: '#f97316', weight: 3, dashArray: '6, 8', opacity: 0.9 }
+      : { color: '#3b82f6', weight: 3, dashArray: '10, 10', opacity: 0.7 }
+    );
+
+    const bounds = window.L.latLngBounds(activeRoute);
+    mapInstanceRef.current.fitBounds(bounds, { padding: [50, 50] });
+  }, [mapReady, activeRoute, isPickupPhase]);
+
+  const applyBackendDroneUpdate = useCallback((payload) => {
+    if (!payload) return;
+    const backendLat = toNumberOrNull(payload.latitude ?? payload.lat);
+    const backendLng = toNumberOrNull(payload.longitude ?? payload.lng ?? payload.long);
+    if (backendLat !== null && backendLng !== null) {
+      setLiveDroneCoords({ lat: backendLat, lng: backendLng });
+    }
+    if (payload.status) {
+      setLiveDroneStatus(payload.status);
+    }
+  }, []);
+
+  const pushDroneLocationUpdate = useCallback((lat, lng) => {
+    if (!droneId) return;
+    merchantAPI
+      .updateDroneLocation(droneId, lat, lng)
+      .then((updated) => {
+        if (updated) {
+          applyBackendDroneUpdate(updated);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to sync drone location', err);
+      });
+  }, [droneId, applyBackendDroneUpdate]);
+
+  // Step-by-step drone movement (matches admin map style)
+  // Add a key that changes when phase switches to force animation restart
+  const movementPhaseKey = `${orderStatus}-${effectiveDroneLat}-${effectiveDroneLng}-${deliveryKey}`;
+  useEffect(() => {
+    if (movementTimerRef.current) {
+      clearInterval(movementTimerRef.current);
+      movementTimerRef.current = null;
+    }
+
     if (!mapReady || !mapInstanceRef.current || !droneMarkerRef.current) return;
     if (merchantLat == null || merchantLng == null || deliveryLat == null || deliveryLng == null) return;
-    if (orderStatus !== 'DELIVERING' || !autoAnimate) return;
+    if (!autoAnimate) return;
 
-    const merchantCoords = [merchantLat, merchantLng];
-    const deliveryCoords = [deliveryLat, deliveryLng];
+    let startCoords = null;
+    let endCoords = null;
+    let phaseType = null;
 
-    let progress = 0;
-    const duration = 10000; // 10 seconds for full journey
-    const startTime = Date.now();
+    if (isPickupPhase && hasDroneCoords) {
+      startCoords = [effectiveDroneLat, effectiveDroneLng];
+      endCoords = [merchantLat, merchantLng];
+      phaseType = 'pickup';
+    } else if (isDeliveryPhase && hasDroneCoords) {
+      startCoords = [effectiveDroneLat, effectiveDroneLng];
+      endCoords = [deliveryLat, deliveryLng];
+      phaseType = 'delivery';
+    }
 
-    const animate = () => {
-      const elapsed = Date.now() - startTime;
-      progress = Math.min(elapsed / duration, 1);
+    if (!startCoords || !endCoords) return;
 
-      // Linear interpolation between merchant and delivery
-      const currentLat = merchantCoords[0] + (deliveryCoords[0] - merchantCoords[0]) * progress;
-      const currentLng = merchantCoords[1] + (deliveryCoords[1] - merchantCoords[1]) * progress;
+    const totalDuration = 30000; // 30 seconds for both pickup and delivery legs
+    const intervalMs = 100; // update every 100ms for smoothness
+    const totalSteps = Math.max(1, Math.round(totalDuration / intervalMs));
+    let currentStep = 0;
 
-      droneMarkerRef.current.setLatLng([currentLat, currentLng]);
+    const angle = Math.atan2(
+      endCoords[1] - startCoords[1],
+      endCoords[0] - startCoords[0]
+    ) * (180 / Math.PI);
+
+    const applyRotation = () => {
+      const droneElement = droneMarkerRef.current?.getElement();
+      if (!droneElement) return;
+      const droneIcon = droneElement.querySelector('.drone-icon');
+      if (droneIcon) {
+        droneIcon.style.transform = `rotate(${angle + 90}deg)`;
+      }
+    };
+
+    applyRotation();
+    lastApiUpdateRef.current = 0;
+
+    movementTimerRef.current = setInterval(() => {
+      currentStep += 1;
+      const progress = Math.min(currentStep / totalSteps, 1);
+      const currentLat = startCoords[0] + (endCoords[0] - startCoords[0]) * progress;
+      const currentLng = startCoords[1] + (endCoords[1] - startCoords[1]) * progress;
+
+      const latLng = [currentLat, currentLng];
+      droneMarkerRef.current.setLatLng(latLng);
+      setLiveDroneCoords({ lat: currentLat, lng: currentLng });
       setDronePosition(Math.round(progress * 100));
 
-      // Calculate rotation angle
-      const angle = Math.atan2(
-        deliveryCoords[1] - merchantCoords[1],
-        deliveryCoords[0] - merchantCoords[0]
-      ) * (180 / Math.PI);
+      const now = Date.now();
+      if (droneId && now - lastApiUpdateRef.current > 1000) {
+        pushDroneLocationUpdate(currentLat, currentLng);
+        lastApiUpdateRef.current = now;
+      }
 
-      // Update drone rotation
-      const droneElement = droneMarkerRef.current.getElement();
-      if (droneElement) {
-        const droneIcon = droneElement.querySelector('.drone-icon');
-        if (droneIcon) {
-          droneIcon.style.transform = `rotate(${angle + 90}deg)`;
+      if (progress >= 1) {
+        // Ensure drone stops exactly at the destination and PUTs once more
+        clearInterval(movementTimerRef.current);
+        movementTimerRef.current = null;
+
+        // Set marker to exact endCoords
+        droneMarkerRef.current.setLatLng(endCoords);
+        setLiveDroneCoords({ lat: endCoords[0], lng: endCoords[1] });
+        setDronePosition(100);
+
+        if (phaseType === 'pickup') {
+          setPickupArrived(true);
+        }
+
+        const popupMsg = phaseType === 'pickup'
+          ? '🏪 Drone đã đến cửa hàng!'
+          : '✅ Drone đã đến khách hàng!';
+        droneMarkerRef.current.bindPopup(popupMsg).openPopup();
+
+        if (droneId) {
+          // Final PUT at exact merchant location for pickup phase
+          if (phaseType === 'pickup') {
+            pushDroneLocationUpdate(merchantLat, merchantLng);
+          } else {
+            pushDroneLocationUpdate(endCoords[0], endCoords[1]);
+          }
         }
       }
-
-      if (progress < 1) {
-        animationRef.current = requestAnimationFrame(animate);
-      } else {
-        // Arrived
-        droneMarkerRef.current.bindPopup('✅ Drone đã đến!').openPopup();
-      }
-    };
-
-    animationRef.current = requestAnimationFrame(animate);
+    }, intervalMs);
 
     return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
+      if (movementTimerRef.current) {
+        clearInterval(movementTimerRef.current);
+        movementTimerRef.current = null;
       }
     };
-  }, [mapReady, merchantLat, merchantLng, deliveryLat, deliveryLng, orderStatus, autoAnimate]);
+  }, [mapReady, merchantLat, merchantLng, deliveryLat, deliveryLng, autoAnimate, isPickupPhase, isDeliveryPhase, hasDroneCoords, droneId, pushDroneLocationUpdate, orderKey, movementPhaseKey]);
 
   // Update drone position based on order status
   useEffect(() => {
@@ -193,14 +365,21 @@ const DroneMap = ({
 
     const merchantCoords = [merchantLat, merchantLng];
     const deliveryCoords = [deliveryLat, deliveryLng];
+    const liveCoords = hasDroneCoords ? [effectiveDroneLat, effectiveDroneLng] : null;
 
     switch (orderStatus) {
       case 'CONFIRMED':
         // Drone at merchant
         droneMarkerRef.current.setLatLng(merchantCoords);
-        droneMarkerRef.current.bindPopup('🏪 Drone đang chờ tại cửa hàng').openPopup();
+        droneMarkerRef.current.bindPopup('🏪 Drone đang chờ').openPopup();
         setDronePosition(0);
         break;
+      case 'READY':
+	 if (liveCoords) {
+	     droneMarkerRef.current.setLatLng(liveCoords);
+             droneMarkerRef.current.bindPopup('✈️ Drone đang đến cửa hàng').openPopup();
+         }
+         break;
       case 'DRONE_ARRIVED':
       case 'COMPLETED':
         // Drone at delivery location
@@ -211,7 +390,7 @@ const DroneMap = ({
       default:
         break;
     }
-  }, [orderStatus, merchantLat, merchantLng, deliveryLat, deliveryLng]);
+  }, [orderStatus, merchantLat, merchantLng, deliveryLat, deliveryLng, hasDroneCoords, effectiveDroneLat, effectiveDroneLng]);
 
   if (!mapLoaded) {
     return (
@@ -233,7 +412,9 @@ const DroneMap = ({
   const getStatusText = () => {
     switch (orderStatus) {
       case 'CONFIRMED':
-        return '🏪 Drone đang chờ tại cửa hàng';
+        return '🏪 Đơn hàng đã xác nhận - Chờ nhà hàng sẵn sàng';
+      case 'READY':
+        return '✈️ Drone đang bay đến cửa hàng để lấy món';
       case 'DELIVERING':
         return '✈️ Drone đang bay đến địa chỉ giao hàng';
       case 'DRONE_ARRIVED':
@@ -245,8 +426,32 @@ const DroneMap = ({
     }
   };
 
+  const renderPickupPrompt = () => {
+    if (!pickupArrived || !canStartDelivery) return null;
+    return (
+      <div className="drone-map-alert">
+        <div>
+          <strong>Drone đã tới cửa hàng.</strong>
+          <div>Nhấn bắt đầu để giao hàng cho khách.</div>
+        </div>
+        <button
+          type="button"
+          className="drone-map-alert-btn"
+          onClick={() => {
+            if (typeof onStartDelivery === 'function') {
+              onStartDelivery();
+            }
+          }}
+        >
+          Bắt đầu giao hàng
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div className="drone-map-container">
+      {renderPickupPrompt()}
       <div className="drone-map-header">
         <div className="status-text">{getStatusText()}</div>
         {orderStatus === 'DELIVERING' && (

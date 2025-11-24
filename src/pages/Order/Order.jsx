@@ -50,6 +50,8 @@ const normalizeStatus = (status) => {
 	switch (s) {
 		case 'CONFIRMED':
 			return 'pending'; // Đang chuẩn bị
+		case 'READY':
+			return 'ready'; // Đã sẵn sàng
 		case 'DELIVERING':
 			return 'delivering'; // Đang giao
 		case 'COMPLETED':
@@ -68,6 +70,7 @@ const statusClass = (status) => {
 	const key = (status || '').toLowerCase();
 	if (key === 'delivered') return 'status-delivered';
 	if (key === 'delivering') return 'status-shipping';
+	if (key === 'ready') return 'status-shipping';
 	if (key === 'pending') return 'status-pending';
 	if (key === 'canceled') return 'status-canceled';
 	return 'status-pending';
@@ -78,6 +81,8 @@ const statusLabelVN = (status) => {
 	switch (status) {
 		case 'pending':
 			return 'Đang chuẩn bị';
+		case 'ready':
+			return 'Đã sẵn sàng';
 		case 'delivering':
 			return 'Đang giao';
 		case 'delivered':
@@ -243,7 +248,7 @@ const filterOrders = (list, tab) => {
     if (!Array.isArray(list)) return [];
     return list.filter(order => {
         const status = normalizeStatus(order.status);
-        if (tab === 'preparing') return status === 'pending';
+        if (tab === 'preparing') return status === 'pending' || status === 'ready';
         if (tab === 'delivering') return status === 'delivering';
         if (tab === 'history') return status === 'delivered' || status === 'canceled';
         return true;
@@ -252,7 +257,7 @@ const filterOrders = (list, tab) => {
 
 const getAdvanceAction = (status) => {
     const s = normalizeStatus(status);
-    if (s === 'pending') return { label: 'Giao hàng', backendStatus: 'DELIVERING' };
+    if (s === 'pending') return { label: 'Sẵn sàng', backendStatus: 'READY' };
     if (s === 'delivering') return { label: 'Hoàn thành', backendStatus: 'COMPLETED' };
     return null;
 };
@@ -372,6 +377,21 @@ const Order = () => {
 
 		const filteredOrders = useMemo(() => filterOrders(orders, tab), [orders, tab]);
 
+	// Sync detailModal with orders state
+	useEffect(() => {
+		if (detailModal.open && detailModal.order) {
+			const currentOrder = orders.find(o => o.id === detailModal.order.id);
+			if (currentOrder) {
+				// Only update if there are changes to avoid infinite loops if object reference changes but content is same
+				// But here we rely on setDetailModal to just update the reference.
+				// To be safe, we can check if specific fields changed or just update.
+				// Since setDetailModal triggers re-render, and this effect runs on [orders], 
+				// and orders updates only on fetch/action, it should be fine.
+				setDetailModal(prev => ({ ...prev, order: currentOrder }));
+			}
+		}
+	}, [orders]);
+
 	const openDetailModal = useCallback(async (order) => {
 		setDetailModal({ open: true, order });
 		setDeliveryCoords(null);
@@ -408,20 +428,29 @@ const Order = () => {
 		try {
 			await merchantAPI.updateOrderStatus(targetId, action.backendStatus);
 			const normalized = normalizeStatus(action.backendStatus);
-			setOrders(prev => prev.map(o => {
-				if (o.id !== order.id) return o;
-				return {
-					...o,
-					status: normalized,
-					statusRaw: action.backendStatus,
-					statusLabel: statusLabelVN(normalized),
-				};
-			}));
-			closeDetailModal();
+			const nextOrderState = {
+				...order,
+				status: normalized,
+				statusRaw: action.backendStatus,
+				statusLabel: statusLabelVN(normalized),
+				detailLoaded: action.backendStatus === 'READY' ? false : order.detailLoaded,
+				detailLoading: false,
+			};
+
+			// Update local state
+			setOrders(prev => prev.map(o => (o.id === order.id ? nextOrderState : o)));
+
+			if (action.backendStatus === 'READY') {
+				openDetailModal(nextOrderState);
+			} else {
+				closeDetailModal();
+			}
 		} catch (err) {
 			alert('Lỗi chuyển trạng thái: ' + resolveErrorMessage(err, 'Không thể cập nhật trạng thái đơn hàng'));
 		}
 	};
+
+	// handleStartDelivery removed: backend now auto-updates to DELIVERING when drone reaches restaurant
 
 	const handleCancel = async (order) => {
 		const targetId = order?.detailId ?? order?.id;
@@ -596,38 +625,64 @@ const Order = () => {
 											<span className="order-detail-value order-detail-note-text">{detailModal.order.note}</span>
 										</div>
 									)}
+									{detailModal.order.drone && (
+										<div className="order-detail-item order-detail-item-drone">
+											<span className="order-detail-label">Drone:</span>
+											<span className="order-detail-value">
+												{detailModal.order.drone.code || detailModal.order.drone.id} 
+												<span className={`drone-status-badge ${detailModal.order.drone.status?.toLowerCase()}`}>
+													({detailModal.order.drone.status})
+												</span>
+											</span>
+										</div>
+									)}
 								</div>
 							</div>
 
 							{/* Drone Map Section */}
-							<div className="order-modal-section">
-								<h3>Theo dõi đơn hàng</h3>
-								{geocoding && <div className="order-loading-text">Đang xác định vị trí...</div>}
-								{!geocoding && merchantCoords && deliveryCoords && (
-									<DroneMap
-										merchantLocation={{
-											lat: merchantCoords.lat,
-											lng: merchantCoords.lng,
-											name: merchantInfo?.name || 'Cửa hàng'
-										}}
-										deliveryLocation={{
-											lat: deliveryCoords.lat,
-											lng: deliveryCoords.lng,
-											address: detailModal.order.address
-										}}
-										orderStatus={(() => {
-											const s = normalizeStatus(detailModal.order.status);
-											if (s === 'delivering') return 'DELIVERING';
-											if (s === 'delivered') return 'COMPLETED';
-											return 'CONFIRMED';
-										})()}
-										autoAnimate={true}
-									/>
-								)}
-								{!geocoding && (!merchantCoords || !deliveryCoords) && (
-									<div className="order-error-text">Không thể hiển thị bản đồ do thiếu thông tin vị trí.</div>
-								)}
-							</div>
+							{(() => {
+								const statusKey = normalizeStatus(detailModal.order.status);
+								const canTrack = detailModal.order.drone && ['ready', 'delivering', 'delivered'].includes(statusKey);
+								if (!canTrack) return null;
+								return (
+									<div className="order-modal-section">
+										<h3>Theo dõi đơn hàng</h3>
+										{geocoding && <div className="order-loading-text">Đang xác định vị trí...</div>}
+										{!geocoding && merchantCoords && deliveryCoords && (
+											<DroneMap
+												merchantLocation={{
+													lat: merchantCoords.lat,
+													lng: merchantCoords.lng,
+													name: merchantInfo?.name || 'Cửa hàng'
+												}}
+												deliveryLocation={{
+													lat: deliveryCoords.lat,
+													lng: deliveryCoords.lng,
+													address: detailModal.order.address
+												}}
+												droneLocation={detailModal.order.drone ? {
+													lat: detailModal.order.drone.latitude,
+													lng: detailModal.order.drone.longitude
+												} : null}
+												droneId={detailModal.order.drone?.id}
+												droneStatus={detailModal.order.drone?.status}
+												orderStatus={(() => {
+													if (statusKey === 'delivering') return 'DELIVERING';
+													if (statusKey === 'delivered') return 'COMPLETED';
+													if (statusKey === 'ready') return 'READY';
+													return 'CONFIRMED';
+												})()}
+												autoAnimate={true}
+												orderKey={detailModal.order.id}
+												   // canStartDelivery and onStartDelivery removed per backend logic update
+											/>
+										)}
+										{!geocoding && (!merchantCoords || !deliveryCoords) && (
+											<div className="order-error-text">Không thể hiển thị bản đồ do thiếu thông tin vị trí.</div>
+										)}
+									</div>
+								);
+							})()}
 
 							<div className="order-modal-section">
 								<h3>Món đã đặt:</h3>
