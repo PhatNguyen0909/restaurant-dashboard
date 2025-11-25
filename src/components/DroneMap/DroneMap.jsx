@@ -254,7 +254,7 @@ const DroneMap = ({
 
   // Step-by-step drone movement (matches admin map style)
   // Add a key that changes when phase switches to force animation restart
-  const movementPhaseKey = `${orderStatus}-${effectiveDroneLat}-${effectiveDroneLng}-${deliveryKey}`;
+  const movementPhaseKey = `${orderStatus}-${deliveryKey}`;
   useEffect(() => {
     if (movementTimerRef.current) {
       clearInterval(movementTimerRef.current);
@@ -281,7 +281,25 @@ const DroneMap = ({
 
     if (!startCoords || !endCoords) return;
 
-    const totalDuration = 30000; // 30 seconds for both pickup and delivery legs
+    // Check if already arrived (or very close)
+    const dist = Math.sqrt(Math.pow(endCoords[0] - startCoords[0], 2) + Math.pow(endCoords[1] - startCoords[1], 2));
+    if (dist < 0.0001) {
+      droneMarkerRef.current.setLatLng(endCoords);
+      setLiveDroneCoords({ lat: endCoords[0], lng: endCoords[1] });
+      setDronePosition(100);
+      
+      if (phaseType === 'pickup') {
+        setPickupArrived(true);
+      }
+
+      const popupMsg = phaseType === 'pickup'
+        ? '🏪 Drone đã đến cửa hàng!'
+        : '✅ Drone đã đến khách hàng!';
+      droneMarkerRef.current.bindPopup(popupMsg).openPopup();
+      return;
+    }
+
+    const totalDuration = 5000; // 5 seconds for both pickup and delivery legs
     const intervalMs = 100; // update every 100ms for smoothness
     const totalSteps = Math.max(1, Math.round(totalDuration / intervalMs));
     let currentStep = 0;
@@ -315,7 +333,7 @@ const DroneMap = ({
       setDronePosition(Math.round(progress * 100));
 
       const now = Date.now();
-      if (droneId && now - lastApiUpdateRef.current > 1000) {
+      if (droneId && now - lastApiUpdateRef.current > 3000) {
         pushDroneLocationUpdate(currentLat, currentLng);
         lastApiUpdateRef.current = now;
       }
