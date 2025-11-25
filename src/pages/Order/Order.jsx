@@ -450,7 +450,26 @@ const Order = () => {
 		}
 	};
 
-	// handleStartDelivery removed: backend now auto-updates to DELIVERING when drone reaches restaurant
+	const handleStartDelivery = async (order) => {
+		const targetId = order?.detailId ?? order?.id;
+		if (!targetId) {
+			alert('Không tìm thấy mã đơn hàng để bắt đầu giao.');
+			return;
+		}
+		try {
+			await merchantAPI.updateOrderStatus(targetId, 'DELIVERING');
+			const nextOrderState = {
+				...order,
+				status: 'delivering',
+				statusRaw: 'DELIVERING',
+				statusLabel: statusLabelVN('delivering'),
+			};
+			setOrders(prev => prev.map(o => (o.id === order.id ? nextOrderState : o)));
+			setDetailModal(prev => ({ ...prev, order: nextOrderState }));
+		} catch (err) {
+			alert('Lỗi bắt đầu giao hàng: ' + resolveErrorMessage(err, 'Không thể cập nhật trạng thái'));
+		}
+	};
 
 	const handleCancel = async (order) => {
 		const targetId = order?.detailId ?? order?.id;
@@ -674,7 +693,8 @@ const Order = () => {
 												})()}
 												autoAnimate={true}
 												orderKey={detailModal.order.id}
-												   // canStartDelivery and onStartDelivery removed per backend logic update
+												canStartDelivery={statusKey === 'ready'}
+												onStartDelivery={() => handleStartDelivery(detailModal.order)}
 											/>
 										)}
 										{!geocoding && (!merchantCoords || !deliveryCoords) && (
