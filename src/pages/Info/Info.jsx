@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import './Info.css';
 import merchantAPI from '../../api/merchantAPI';
 import userAPI from '../../api/userAPI';
@@ -141,6 +147,10 @@ const resolveImageUrl = (merchant) => (
   || ''
 );
 
+const normalizeCuisineValue = (value = '') => (
+  stripDiacritics(String(value).trim()).toLowerCase().replace(/[^a-z0-9]/g, '')
+);
+
 const Info = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -160,6 +170,7 @@ const Info = () => {
   const [cuisineOptions, setCuisineOptions] = useState([]);
   const [cuisineLoading, setCuisineLoading] = useState(false);
   const [cuisineError, setCuisineError] = useState('');
+  const [cuisineSearch, setCuisineSearch] = useState('');
   const [cuisineDropdownOpen, setCuisineDropdownOpen] = useState(false);
   const cuisineDropdownRef = useRef(null);
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -236,9 +247,23 @@ const Info = () => {
         const list = await userAPI.getCuisineTypes();
         if (!mounted) return;
         const normalized = Array.isArray(list)
-          ? list.map((item) => (typeof item === 'string' ? item : (item?.name || item?.title || item?.label || item?.value || '')).trim()).filter(Boolean)
+          ? list.map((item, idx) => {
+            if (typeof item === 'string') {
+              const trimmed = item.trim();
+              return trimmed ? { label: trimmed, value: trimmed } : null;
+            }
+            const rawLabel = item?.name || item?.title || item?.label || item?.displayName || item?.cuisine || item?.value || '';
+            const rawValue = item?.code || item?.value || item?.id || item?.name || item?.title || item?.cuisine || '';
+            const label = String(rawLabel || rawValue || `Cuisine ${idx + 1}`).trim();
+            const value = String(rawValue || rawLabel || '').trim();
+            if (!value) return null;
+            return {
+              label: label || value,
+              value,
+            };
+          }).filter(Boolean)
           : [];
-        setCuisineOptions(Array.from(new Set(normalized)));
+        setCuisineOptions(normalized);
         setCuisineError('');
       } catch (e) {
         if (mounted) {
@@ -258,6 +283,20 @@ const Info = () => {
     }, 60000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!cuisineDropdownOpen) return undefined;
+    const handler = (event) => {
+      if (!cuisineDropdownRef.current) return;
+      if (!cuisineDropdownRef.current.contains(event.target)) {
+        setCuisineDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+    };
+  }, [cuisineDropdownOpen]);
 
   useEffect(() => {
     const latitude = parseCoordinate(data?.latitude);
@@ -295,10 +334,85 @@ const Info = () => {
   }, [data]);
 
   const cuisineSelectOptions = useMemo(() => {
-    const base = Array.isArray(cuisineOptions) ? cuisineOptions : [];
-    const selected = Array.isArray(form.cuisineTypes) ? form.cuisineTypes : [];
-    return Array.from(new Set([...base, ...selected.filter(Boolean)]));
-  }, [cuisineOptions, form.cuisineTypes]);
+    const result = [];
+    const seen = new Set();
+    const pushOption = (entry) => {
+      if (!entry || !entry.value) return;
+      const key = normalizeCuisineValue(entry.value);
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      result.push({
+        label: entry.label || entry.value,
+        value: entry.value,
+      });
+    };
+    (Array.isArray(cuisineOptions) ? cuisineOptions : []).forEach(pushOption);
+    return result;
+  }, [cuisineOptions]);
+
+  const cuisineValueMap = useMemo(() => {
+    const map = new Map();
+    cuisineSelectOptions.forEach((option) => {
+      const valueKey = normalizeCuisineValue(option.value);
+      const labelKey = normalizeCuisineValue(option.label);
+      if (valueKey) map.set(valueKey, option);
+      if (labelKey) map.set(labelKey, option);
+    });
+    return map;
+  }, [cuisineSelectOptions]);
+
+  const dedupeCuisineList = useCallback((list = []) => {
+    const result = [];
+    const seen = new Set();
+    list.forEach((item) => {
+      const rawKey = normalizeCuisineValue(item);
+      if (!rawKey) return;
+      const matched = cuisineValueMap.get(rawKey);
+      const canonicalValue = matched?.value || item;
+      const canonicalKey = normalizeCuisineValue(canonicalValue);
+      if (!canonicalKey || seen.has(canonicalKey)) return;
+      seen.add(canonicalKey);
+      result.push(canonicalValue);
+    });
+    return result;
+  }, [cuisineValueMap]);
+
+  const selectedCuisineKeys = useMemo(() => {
+    const keys = new Set();
+    const current = Array.isArray(form.cuisineTypes) ? form.cuisineTypes : [];
+    current.forEach((item) => {
+      const matched = cuisineValueMap.get(normalizeCuisineValue(item));
+      const canonicalValue = matched?.value || item;
+      const canonicalKey = normalizeCuisineValue(canonicalValue);
+      if (canonicalKey) keys.add(canonicalKey);
+    });
+    return keys;
+  }, [form.cuisineTypes, cuisineValueMap]);
+
+  const filteredCuisineOptions = useMemo(() => {
+    const keyword = stripDiacritics(cuisineSearch).toLowerCase();
+    return cuisineSelectOptions.filter((option) => {
+      if (!option || !option.value) return false;
+      const optionKey = normalizeCuisineValue(option.value);
+      if (!optionKey) return false;
+      // Cho phép hiển thị cả options đã chọn và chưa chọn để có thể check/uncheck
+      if (keyword && !stripDiacritics(option.label).toLowerCase().includes(keyword)) {
+        return false;
+      }
+      return true;
+    });
+  }, [cuisineSearch, cuisineSelectOptions]);
+
+  const selectedCuisineEntries = useMemo(() => {
+    const current = Array.isArray(form.cuisineTypes) ? dedupeCuisineList(form.cuisineTypes) : [];
+    return current.map((value) => {
+      const matched = cuisineValueMap.get(normalizeCuisineValue(value));
+      return {
+        value: matched?.value || value,
+        label: matched?.label || matched?.value || value,
+      };
+    });
+  }, [form.cuisineTypes, cuisineValueMap, dedupeCuisineList]);
 
   const serverOpen = interpretBoolean(data?.open);
   const effectiveOpen = manualOpen != null
@@ -328,20 +442,6 @@ const Info = () => {
     return 'Chưa có lịch hoạt động cho hôm nay.';
   }, [manualOpen, scheduledOpen, serverOpen]);
 
-  useEffect(() => {
-    if (!cuisineDropdownOpen) return undefined;
-    const handler = (event) => {
-      if (!cuisineDropdownRef.current) return;
-      if (!cuisineDropdownRef.current.contains(event.target)) {
-        setCuisineDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => {
-      document.removeEventListener('mousedown', handler);
-    };
-  }, [cuisineDropdownOpen]);
-
   const updateOpeningHour = (day, value) => {
     const normalized = resolveWeekdayKey(day) || (WEEK_ORDER.includes(day) ? day : null);
     if (!normalized) return;
@@ -353,6 +453,40 @@ const Info = () => {
       },
     }));
   };
+
+  const setCuisineSelected = (value, shouldSelect) => {
+    const key = normalizeCuisineValue(value);
+    const matched = key ? cuisineValueMap.get(key) : null;
+    
+    if (!matched) {
+      console.error('❌ No matched entry in cuisineValueMap for key:', key);
+      return;
+    }
+    
+    setForm((prev) => {
+      const currentList = Array.isArray(prev.cuisineTypes) ? prev.cuisineTypes : [];
+      
+      // Backend expects LABEL, not ID - use matched.label
+      const itemToStore = matched.label;
+      const itemKey = normalizeCuisineValue(itemToStore);
+      
+      if (shouldSelect) {
+        // Check nếu chưa có trong list thì thêm vào
+        const hasItem = currentList.some((item) => normalizeCuisineValue(item) === itemKey);
+        if (hasItem) return prev;
+        return { ...prev, cuisineTypes: [...currentList, itemToStore] };
+      } else {
+        // Bỏ check: filter bằng cách so sánh normalized keys
+        const nextList = currentList.filter((item) => normalizeCuisineValue(item) !== itemKey);
+        if (nextList.length === currentList.length) return prev;
+        return { ...prev, cuisineTypes: nextList };
+      }
+    });
+    
+    if (!editing) setEditing(true);
+  };
+
+  // Removed conflicting useEffect that was interfering with uncheck logic
 
   const updateCoordinateField = (field) => (event) => {
     const value = event?.target?.value ?? '';
@@ -505,6 +639,16 @@ const Info = () => {
         latitude: desiredLatitude,
         longitude: desiredLongitude,
       };
+
+      const invalidCuisineValues = desired.cuisineTypes.filter((value) => {
+        const key = normalizeCuisineValue(value);
+        return !key || !cuisineValueMap.get(key);
+      });
+      if (invalidCuisineValues.length > 0) {
+        alert(`Các loại ẩm thực không hợp lệ: ${invalidCuisineValues.join(', ')}. Vui lòng chọn lại từ danh sách.`);
+        setSaving(false);
+        return;
+      }
 
       const missingDays = WEEK_ORDER.filter((day) => !String(desired.openingHours?.[day] ?? '').trim());
       if (missingDays.length > 0) {
@@ -681,7 +825,6 @@ const Info = () => {
   const address = data.address || '';
   const avgRating = data.avgRating || 0;
   const ratingCount = data.ratingCount || 0;
-  const merchantCuisineTypes = data.cuisineTypes || [];
   const imageUrl = resolveImageUrl(data);
   const openStatusTitle = effectiveOpen ? 'Nhà hàng đang mở cửa' : 'Nhà hàng đang đóng cửa';
   const syncInProgress = openStatusUpdating;
@@ -760,16 +903,73 @@ const Info = () => {
               {/* Cuisine Types Field */}
               <div className="info-field">
                 <label className="field-label">Loại ẩm thực</label>
-                <div className="field-input-with-icon">
-                  <svg className="field-icon" width="14" height="14" viewBox="0 0 16 16" fill="none">
-                    <path d="M8 2L10 6L14 7L10 10L11 14L8 12L5 14L6 10L2 7L6 6L8 2Z" stroke="#9CA3AF" strokeWidth="1.5" strokeLinejoin="round"/>
-                  </svg>
-                  <span className="field-value-readonly">
-                    {Array.isArray(merchantCuisineTypes) && merchantCuisineTypes.length > 0 
-                      ? merchantCuisineTypes.join(', ') 
-                      : 'Chưa có'}
-                  </span>
+                <div
+                  className={`cuisine-select ${cuisineDropdownOpen ? 'open' : ''}`}
+                  ref={cuisineDropdownRef}
+                >
+                  <button
+                    type="button"
+                    className="cuisine-select-display"
+                    onClick={() => {
+                      setCuisineDropdownOpen((prev) => !prev);
+                      if (!editing) setEditing(true);
+                    }}
+                  >
+                    <span>
+                      {selectedCuisineEntries.length
+                        ? selectedCuisineEntries.map((entry) => entry.label).join(', ')
+                        : 'Chọn loại ẩm thực'}
+                    </span>
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                      <path d="M5 7L10 12L15 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+
+                  {cuisineDropdownOpen && (
+                    <div className="cuisine-select-dropdown">
+                      <div className="cuisine-dropdown-search">
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                          <path d="M7 2C4.23858 2 2 4.23858 2 7C2 9.76142 4.23858 12 7 12C8.30622 12 9.49745 11.4957 10.382 10.6567L13.2929 13.5676" stroke="#6B7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        <input
+                          type="text"
+                          value={cuisineSearch}
+                          onChange={(event) => setCuisineSearch(event.target.value)}
+                          placeholder="Tìm kiếm"
+                        />
+                      </div>
+
+                      <div className="cuisine-dropdown-body">
+                        {cuisineLoading && <div className="cuisine-list-hint">Đang tải danh sách...</div>}
+                        {!cuisineLoading && cuisineError && (
+                          <div className="cuisine-list-error">{cuisineError}</div>
+                        )}
+                        {!cuisineLoading && !cuisineError && !filteredCuisineOptions.length && (
+                          <div className="cuisine-list-hint">Không tìm thấy loại phù hợp.</div>
+                        )}
+                        {!cuisineLoading && !cuisineError && filteredCuisineOptions.length > 0 && (
+                          <div className="cuisine-dropdown-options">
+                            {filteredCuisineOptions.map((option) => {
+                              const optionKey = normalizeCuisineValue(option.value);
+                              const checked = selectedCuisineKeys.has(optionKey);
+                              return (
+                                <label key={option.value} className={`cuisine-dropdown-option ${checked ? 'checked' : ''}`}>
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(event) => setCuisineSelected(option.value, event.target.checked)}
+                                  />
+                                  <span>{option.label}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
+                <small className="field-hint">Chọn các loại ẩm thực có trong danh sách hệ thống.</small>
               </div>
             </div>
 
@@ -844,10 +1044,9 @@ const Info = () => {
           </div>
 
           <div className="info-field">
-            <label className="field-label">Tọa độ GPS</label>
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 220px' }}>
-                <span className="field-sub-label">Vĩ độ (Latitude)</span>
+                <label className="field-label" style={{ fontSize: '13px', marginBottom: '6px' }}>Vĩ độ (Latitude)</label>
                 <input
                   type="text"
                   className="field-input"
@@ -857,7 +1056,7 @@ const Info = () => {
                 />
               </div>
               <div style={{ flex: '1 1 220px' }}>
-                <span className="field-sub-label">Kinh độ (Longitude)</span>
+                <label className="field-label" style={{ fontSize: '13px', marginBottom: '6px' }}>Kinh độ (Longitude)</label>
                 <input
                   type="text"
                   className="field-input"

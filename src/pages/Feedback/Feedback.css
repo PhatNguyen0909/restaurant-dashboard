@@ -1,8 +1,11 @@
 /* Feedback Page Container */
 .feedback-page {
-  padding: 24px;
-  max-width: 1400px;
-  margin: 0 auto;
+  padding: 24px 28px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 0;
+  overflow-x: hidden;
 }
 
 /* Header */
@@ -69,7 +72,11 @@
   padding: 8px;
   background: #F9FAFB;
   border-radius: 12px;
+  width: 100%;
+  box-sizing: border-box;
   overflow-x: auto;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .feedback-filter-btn {
@@ -781,18 +788,42 @@
   transform: none;
 }
 
-/* Responsive */
+/* ===== RESPONSIVE DESIGN ===== */
+
+@media (max-width: 1024px) {
+  .feedback-page {
+    padding: 24px 20px;
+    max-width: none;
+    margin: 0;
+  }
+
+  .feedback-title {
+    font-size: 28px;
+  }
+
+  .feedback-images {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  }
+}
+
 @media (max-width: 768px) {
   .feedback-page {
-    padding: 16px;
+    padding: 20px 16px;
+    max-width: none;
+    margin: 0;
   }
 
   .feedback-header {
     flex-direction: column;
+    align-items: stretch;
   }
 
   .feedback-title {
     font-size: 24px;
+  }
+
+  .feedback-subtitle {
+    font-size: 14px;
   }
 
   .feedback-refresh-btn {
@@ -801,8 +832,17 @@
   }
 
   .feedback-filters {
-    flex-wrap: nowrap;
-    overflow-x: auto;
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  .feedback-filter-btn {
+    flex: 1 1 calc(50% - 8px);
+    justify-content: center;
+    text-align: center;
+    padding: 10px 14px;
+    font-size: 14px;
+    white-space: normal;
   }
 
   .feedback-card {
@@ -811,17 +851,37 @@
 
   .feedback-card-header {
     flex-direction: column;
-    gap: 12px;
+    align-items: flex-start;
   }
 
   .feedback-images {
     grid-template-columns: repeat(3, 1fr);
   }
 
+  .feedback-reply-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .feedback-pagination {
+    flex-wrap: wrap;
+  }
+
+  .pagination-btn {
+    padding: 8px 14px;
+    font-size: 14px;
+  }
+
+  .pagination-number {
+    min-width: 36px;
+    height: 36px;
+    font-size: 14px;
+  }
+
   .lightbox-prev,
   .lightbox-next {
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
   }
 
   .lightbox-prev {
@@ -835,28 +895,18 @@
   .lightbox-close {
     top: 10px;
     right: 10px;
-    width: 36px;
-    height: 36px;
-  }
-
-  .feedback-pagination {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .pagination-btn {
-    padding: 8px 12px;
-    font-size: 14px;
-  }
-
-  .pagination-number {
-    min-width: 36px;
-    height: 36px;
-    font-size: 14px;
+    width: 40px;
+    height: 40px;
   }
 
   .feedback-modal {
+    max-width: 95%;
     margin: 0;
+  }
+
+  .feedback-modal-header,
+  .feedback-modal-body {
+    padding: 20px;
   }
 
   .feedback-modal-actions {
@@ -866,20 +916,95 @@
   .feedback-btn-cancel,
   .feedback-btn-submit {
     width: 100%;
+    justify-content: center;
   }
 }
 
 @media (max-width: 480px) {
+  .feedback-page {
+    padding: 16px 12px;
+    max-width: none;
+    margin: 0;
+  }
+
+  .feedback-title {
+    font-size: 20px;
+  }
+
+  .feedback-subtitle {
+    font-size: 13px;
+  }
+
+  .feedback-refresh-btn {
+    padding: 10px 16px;
+    font-size: 14px;
+  }
+
+  .feedback-filter-btn {
+    flex: 1 1 100%;
+    padding: 10px 12px;
+    font-size: 13px;
+    text-align: center;
+    justify-content: center;
+    white-space: normal;
+  }
+
+  .filter-count {
+    min-width: 20px;
+    height: 20px;
+    font-size: 11px;
+  }
+
+  .feedback-card {
+    padding: 14px;
+  }
+
+  .feedback-avatar,
+  .feedback-modal-avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+  }
+
+  .feedback-customer-name {
+    font-size: 15px;
+  }
+
+  .feedback-date {
+    font-size: 12px;
+  }
+
+  .star {
+    font-size: 16px;
+  }
+
+  .feedback-comment {
+    font-size: 14px;
+  }
+
   .feedback-images {
     grid-template-columns: repeat(2, 1fr);
   }
-  
-  .feedback-customer {
-    flex-direction: column;
-    align-items: flex-start;
+
+  .feedback-reply-btn {
+    padding: 10px 16px;
+    font-size: 14px;
   }
 
-  .pagination-btn-text {
+  .feedback-order-ref {
+    font-size: 12px;
+  }
+
+  .feedback-reply-text {
+    font-size: 14px;
+  }
+
+  .feedback-edit-reply-btn {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .pagination-btn span {
     display: none;
   }
 
@@ -888,18 +1013,57 @@
     padding: 8px;
   }
 
-  .pagination-numbers {
-    gap: 4px;
-  }
-
   .pagination-number {
     min-width: 32px;
     height: 32px;
     font-size: 13px;
   }
 
+  .lightbox-prev,
+  .lightbox-next {
+    width: 36px;
+    height: 36px;
+  }
+
+  .lightbox-prev {
+    left: 8px;
+  }
+
+  .lightbox-next {
+    right: 8px;
+  }
+
+  .lightbox-close {
+    top: 8px;
+    right: 8px;
+    width: 36px;
+    height: 36px;
+  }
+
+  .feedback-modal-header h2 {
+    font-size: 18px;
+  }
+
   .feedback-modal-header,
   .feedback-modal-body {
-    padding: 20px;
+    padding: 16px;
+  }
+
+  .feedback-modal-customer h4 {
+    font-size: 15px;
+  }
+
+  .feedback-modal-comment {
+    font-size: 14px;
+  }
+
+  .feedback-form-textarea {
+    font-size: 14px;
+    min-height: 100px;
+  }
+
+  .feedback-btn-cancel,
+  .feedback-btn-submit {
+    font-size: 14px;
   }
 }
