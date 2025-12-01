@@ -14,7 +14,6 @@ const AddDishModal = ({ open, onClose, onDishAdded }) => {
   });
   const [submitting, setSubmitting] = useState(false);
   const [categories, setCategories] = useState([]);
-  const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -113,7 +112,6 @@ const AddDishModal = ({ open, onClose, onDishAdded }) => {
       setImagePreview('');
       setImageUrl('');
       setData({ name: '', description: '', category: '', price: '' });
-      setIsVisible(true);
 
       // Close modal and refresh
       onClose?.(true); // Pass true to indicate success
@@ -130,7 +128,6 @@ const AddDishModal = ({ open, onClose, onDishAdded }) => {
     setImagePreview('');
     setImageUrl('');
     setData({ name: '', description: '', category: '', price: '' });
-    setIsVisible(true);
     onClose?.(false);
   };
 
@@ -280,24 +277,6 @@ const AddDishModal = ({ open, onClose, onDishAdded }) => {
               onChange={onChangeHandler}
               rows={3}
             />
-          </div>
-
-          {/* Visibility Toggle */}
-          <div className="add-dish-form-group">
-            <div className="add-dish-visibility-toggle">
-              <div>
-                <div className="add-dish-visibility-label">Trạng thái món</div>
-                <div className="add-dish-visibility-desc">Món này sẽ hiển thị trong menu</div>
-              </div>
-              <label className="add-dish-toggle">
-                <input
-                  type="checkbox"
-                  checked={isVisible}
-                  onChange={(e) => setIsVisible(e.target.checked)}
-                />
-                <span className="add-dish-toggle-slider"></span>
-              </label>
-            </div>
           </div>
 
           {/* Actions */}
