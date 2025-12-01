@@ -377,14 +377,28 @@ export default function OptionGroupsTab() {
         const key = String(dishIdRaw);
         if (seen.has(key)) return;
         seen.add(key);
+        
+        // Lấy thông tin từ dishesById nếu có để có category đầy đủ hơn
+        const dishFromMap = dishesById.get(key);
+        const categoryInfo = dishFromMap?.category || entry?.category;
+        const categoryId = categoryInfo?.id 
+          ?? categoryInfo?._id 
+          ?? dishFromMap?.categoryId 
+          ?? entry?.categoryId 
+          ?? entry?.category_id;
+        const categoryName = categoryInfo?.name 
+          ?? dishFromMap?.categoryName 
+          ?? entry?.categoryName 
+          ?? entry?.category?.name;
+        
         normalized.push({
           id: key,
-          name: entry?.name || entry?.title || 'Không tên',
-          basePrice: toNumberSafe(entry?.basePrice ?? entry?.price ?? entry?.listPrice ?? 0),
-          imgUrl: entry?.imgUrl ?? entry?.image ?? entry?.thumbnailUrl ?? '',
-          category: entry?.category,
-          categoryId: entry?.categoryId ?? entry?.category_id,
-          categoryName: entry?.categoryName ?? entry?.category?.name,
+          name: entry?.name || entry?.title || dishFromMap?.name || 'Không tên',
+          basePrice: toNumberSafe(entry?.basePrice ?? entry?.price ?? entry?.listPrice ?? dishFromMap?.price ?? 0),
+          imgUrl: entry?.imgUrl ?? entry?.image ?? entry?.thumbnailUrl ?? dishFromMap?.imgUrl ?? '',
+          category: categoryInfo,
+          categoryId: categoryId,
+          categoryName: categoryName,
         });
       });
 
