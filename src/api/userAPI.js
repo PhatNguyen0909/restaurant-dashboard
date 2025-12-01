@@ -53,7 +53,7 @@ const userAPI ={
       throw new Error('Vui lòng nhập đầy đủ mật khẩu hiện tại và mật khẩu mới');
     }
     const body = { currentPassword, newPassword };
-    const res = await apiClient.post('/auth/changePassword', body);
+    const res = await apiClient.post('/account/change-password', body);
     return res?.data?.data ?? res?.data;
   }
 };

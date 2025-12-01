@@ -5,6 +5,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './Info.css';
 import merchantAPI from '../../api/merchantAPI';
 import userAPI from '../../api/userAPI';
@@ -152,6 +153,7 @@ const normalizeCuisineValue = (value = '') => (
 );
 
 const Info = () => {
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -173,9 +175,6 @@ const Info = () => {
   const [cuisineSearch, setCuisineSearch] = useState('');
   const [cuisineDropdownOpen, setCuisineDropdownOpen] = useState(false);
   const cuisineDropdownRef = useRef(null);
-  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
-  const [passwordMessage, setPasswordMessage] = useState({ type: '', text: '' });
-  const [changingPassword, setChangingPassword] = useState(false);
   const [showOpeningHoursModal, setShowOpeningHoursModal] = useState(false);
   const [manualOpen, setManualOpen] = useState(null);
   const [openStatusUpdating, setOpenStatusUpdating] = useState(false);
@@ -570,52 +569,7 @@ const Info = () => {
       URL.revokeObjectURL(form.imagePreview);
     }
   }, [form.imagePreview]);
-  const updatePasswordField = (field) => (event) => {
-    const value = event?.target?.value ?? '';
-    setPasswordForm((prev) => ({ ...prev, [field]: value }));
-    setPasswordMessage((prev) => (prev?.text ? { type: '', text: '' } : prev));
-  };
-  const onChangePassword = async () => {
-    const currentPassword = String(passwordForm.currentPassword || '').trim();
-    const newPassword = String(passwordForm.newPassword || '').trim();
-    const confirmPassword = String(passwordForm.confirmPassword || '').trim();
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      setPasswordMessage({ type: 'error', text: 'Vui lòng nhập đầy đủ các trường bắt buộc.' });
-      return;
-    }
-    if (newPassword.length < 8) {
-      setPasswordMessage({ type: 'error', text: 'Mật khẩu mới phải có ít nhất 8 ký tự.' });
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordMessage({ type: 'error', text: 'Mật khẩu mới và xác nhận mật khẩu không khớp.' });
-      return;
-    }
-    if (currentPassword === newPassword) {
-      setPasswordMessage({ type: 'error', text: 'Mật khẩu mới phải khác mật khẩu hiện tại.' });
-      return;
-    }
 
-    setChangingPassword(true);
-    setPasswordMessage({ type: '', text: '' });
-    try {
-      await userAPI.changePassword({ currentPassword, newPassword });
-      setPasswordMessage({ type: 'success', text: 'Đổi mật khẩu thành công.' });
-      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    } catch (e) {
-      const status = e?.response?.status;
-      const body = e?.response?.data;
-      const codeSource = body?.code || body?.errorCode || body?.error_code || body?.message || body?.error;
-      const normalizedCode = typeof codeSource === 'string' ? codeSource.toUpperCase() : '';
-      const defaultMsg = (body && (body.message || body.error || body.detail || body.title)) || e?.message || 'Đổi mật khẩu thất bại';
-      const prettyMsg = normalizedCode.includes('USER_PASSWORD_INVALID_PATTERN')
-        ? 'Mật khẩu phải bao gồm 8-20 kí tự, ít nhất 1 chữ hoa, 1 chữ thường 1 số, 1 kí tự đặc biệt'
-        : defaultMsg;
-      setPasswordMessage({ type: 'error', text: `${prettyMsg}` });
-    } finally {
-      setChangingPassword(false);
-    }
-  };
   const onSave = async () => {
     setSaving(true);
     try {
@@ -841,6 +795,16 @@ const Info = () => {
           <h1 className="page-title">Merchant Info</h1>
           <p className="page-subtitle">Quản lý thông tin nhà hàng của bạn</p>
         </div>
+        <button 
+          className="btn-change-password"
+          onClick={() => navigate('/change-password')}
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path d="M9 1V6M9 6L12 3M9 6L6 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M14 8V13C14 14.1046 13.1046 15 12 15H6C4.89543 15 4 14.1046 4 13V8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+          Đổi mật khẩu
+        </button>
       </div>
 
       {/* Merchant Info Card */}

@@ -14,6 +14,7 @@ import Payment from './pages/Payment/Payment';
 import Info from './pages/Info/Info';
 import Category from './pages/Category/Category';
 import Feedback from './pages/Feedback/Feedback';
+import ChangePassword from './pages/ChangePassword/ChangePassword';
 
 function App() {
   const [MerchantId, setMerchantId] = useState(null);
@@ -46,6 +47,7 @@ function App() {
           <Route path='/order' element={<Order />} />
           <Route path='/info' element={<Info />} />
           <Route path='/feedback' element={<Feedback />} />
+          <Route path='/change-password' element={<ChangePassword />} />
           <Route path='*' element={<Navigate to='/list' replace />} />
         </Routes>
       </div>

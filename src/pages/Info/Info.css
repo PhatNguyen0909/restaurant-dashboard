@@ -25,6 +25,31 @@
   flex-shrink: 0;
 }
 
+.btn-change-password {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: white;
+  border: 1.5px solid #E5E7EB;
+  border-radius: 8px;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-change-password:hover {
+  background: #F9FAFB;
+  border-color: #10B981;
+  color: #10B981;
+}
+
+.btn-change-password svg {
+  flex-shrink: 0;
+}
+
 .page-title {
   margin: 0;
   font-size: 24px;
