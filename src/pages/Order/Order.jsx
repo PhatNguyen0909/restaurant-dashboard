@@ -258,7 +258,6 @@ const filterOrders = (list, tab) => {
 const getAdvanceAction = (status) => {
     const s = normalizeStatus(status);
     if (s === 'pending') return { label: 'Sẵn sàng', backendStatus: 'READY' };
-    if (s === 'delivering') return { label: 'Hoàn thành', backendStatus: 'COMPLETED' };
     return null;
 };
 

@@ -23,19 +23,6 @@ const DroneMap = ({
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const droneMarkerRef = useRef(null);
-  const polylineRef = useRef(null);
-  const [mapLoaded, setMapLoaded] = useState(false);
-  const [mapReady, setMapReady] = useState(false);
-  const [dronePosition, setDronePosition] = useState(0); // 0-100%
-  const movementTimerRef = useRef(null);
-  const lastApiUpdateRef = useRef(0);
-
-
-  const [pickupArrived, setPickupArrived] = useState(false);
-
-
-  const merchantLat = toNumberOrNull(merchantLocation?.lat);
-  const merchantLng = toNumberOrNull(merchantLocation?.lng);
   const merchantName = merchantLocation?.name;
   const deliveryLat = toNumberOrNull(deliveryLocation?.lat);
   const deliveryLng = toNumberOrNull(deliveryLocation?.lng);
@@ -281,8 +268,8 @@ const DroneMap = ({
 
     if (!startCoords || !endCoords) return;
 
-    const totalDuration = 30000; // 30 seconds for both pickup and delivery legs
-    const intervalMs = 100; // update every 100ms for smoothness
+    const totalDuration = 3000; // 3 seconds (tăng tốc độ x10)
+    const intervalMs = 10; // update every 10ms cho tốc độ bay nhanh hơn
     const totalSteps = Math.max(1, Math.round(totalDuration / intervalMs));
     let currentStep = 0;
 
@@ -332,6 +319,13 @@ const DroneMap = ({
 
         if (phaseType === 'pickup') {
           setPickupArrived(true);
+          // Nếu trạng thái drone là TO_PICKUP thì gọi API cập nhật trạng thái đơn sang DELIVERING
+          if (currentDroneStatus === 'TO_PICKUP' && droneId) {
+            // Gọi API cập nhật trạng thái drone sang DELIVERING
+            import('../../api/merchantAPI').then(({ default: merchantAPI }) => {
+              merchantAPI.updateDroneStatus(droneId, 'DELIVERING');
+            });
+          }
         }
 
         const popupMsg = phaseType === 'pickup'

@@ -14,7 +14,20 @@ const slugifyCategoryName = (value) => {
 		.replace(/^-+|-+$/g, "")
 		.toLowerCase();
 	return base || "category";
+
+	// Update drone status (PUT /admin/drones/{id}/update-status)
+	updateDroneStatus: async (droneId, status) => {
+		if (!droneId || !status) return null;
+		try {
+			const res = await apiClient.put(`/admin/drones/${droneId}/update-status`, { status });
+			return res?.data?.data ?? res?.data ?? null;
+		} catch (err) {
+			console.error('Failed to update drone status', err);
+			return null;
+		}
+	}
 };
+
 
 const buildCategoryKey = (name, providedKey) => {
 	if (providedKey) return String(providedKey);
