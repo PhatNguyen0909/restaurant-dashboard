@@ -654,12 +654,26 @@ const merchantAPI = {
 		formData.append('merchantName', String(merchantName).trim());
 		formData.append('imgFile', imgFile);
 		
-		const res = await apiClient.post('/merchant/upload-transaction-proof', formData, {
-			headers: {
-				'Content-Type': 'multipart/form-data',
-			},
-		});
-		return res?.data?.data ?? res?.data;
+		// Thử endpoint public trước, nếu không tồn tại/không hỗ trợ thì fallback sang endpoint merchant
+		const candidates = [
+			{ path: '/public/upload-transaction-proof' },
+			{ path: '/merchant/upload-transaction-proof' },
+		];
+		let lastErr;
+		for (const c of candidates) {
+			try {
+				const res = await apiClient.post(c.path, formData, {
+					headers: {
+						// Không set Content-Type để axios tự gán boundary multipart
+						Accept: 'application/json',
+					},
+				});
+				return res?.data?.data ?? res?.data;
+			} catch (e) {
+				lastErr = e;
+			}
+		}
+		throw lastErr || new Error('Upload transaction proof failed');
 	},
 
 	// Update drone location
