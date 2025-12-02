@@ -39,7 +39,8 @@ export const attachToken = (token) => {
 // Always attach token from localStorage if available
 api.interceptors.request.use((config) => {
   const url = String(config?.url || '');
-  const isPublic = /\/auth\/log-in|\/auth\/login|\/merchant\/register|\/auth\/refresh|\/cuisine-types/i.test(url);
+  // Các endpoint public: không gắn token để tránh backend validate token hết hạn và trả 401
+  const isPublic = /\/auth\/log-in|\/auth\/login|\/merchant\/register|\/auth\/refresh|\/cuisine-types|\/public\/|\/upload-transaction-proof/i.test(url);
   
   if (!isPublic) {
     const token = getToken();
