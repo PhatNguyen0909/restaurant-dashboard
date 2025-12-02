@@ -656,6 +656,7 @@ const merchantAPI = {
 		
 		// Thử endpoint public trước, nếu không tồn tại/không hỗ trợ thì fallback sang endpoint merchant
 		const candidates = [
+			// Nếu backend không có public, sẽ fallback sang merchant; cả hai đều yêu cầu bỏ gắn Authorization
 			{ path: '/public/upload-transaction-proof' },
 			{ path: '/merchant/upload-transaction-proof' },
 		];
@@ -666,7 +667,10 @@ const merchantAPI = {
 					headers: {
 						// Không set Content-Type để axios tự gán boundary multipart
 						Accept: 'application/json',
+						'X-Skip-Auth': 'true',
 					},
+					// Đặt cờ skipAuth để interceptor không gắn Authorization
+					skipAuth: true,
 				});
 				return res?.data?.data ?? res?.data;
 			} catch (e) {

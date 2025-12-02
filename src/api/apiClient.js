@@ -41,8 +41,10 @@ api.interceptors.request.use((config) => {
   const url = String(config?.url || '');
   // Các endpoint public: không gắn token để tránh backend validate token hết hạn và trả 401
   const isPublic = /\/auth\/log-in|\/auth\/login|\/merchant\/register|\/auth\/refresh|\/cuisine-types|\/public\/|\/upload-transaction-proof/i.test(url);
+  // Cho phép yêu cầu bỏ qua auth theo từng request
+  const skipAuth = Boolean(config?.skipAuth) || String(config?.headers?.['X-Skip-Auth'] || '').toLowerCase() === 'true';
   
-  if (!isPublic) {
+  if (!isPublic && !skipAuth) {
     const token = getToken();
     console.log('[apiClient] Debug:', { 
       url, 
