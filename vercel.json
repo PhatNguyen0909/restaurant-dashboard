@@ -1,8 +1,7 @@
 {
-  "rewrites": [
-    {
-      "source": "/potato-api/:path*",
-      "destination": "/api/proxy"
-    }
+  "routes": [
+    { "src": "/potato-api/(.*)", "dest": "/api/proxy" },
+    { "handle": "filesystem" },
+    { "src": "/.*", "dest": "/" }
   ]
 }
