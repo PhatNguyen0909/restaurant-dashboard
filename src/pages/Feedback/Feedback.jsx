@@ -2,6 +2,27 @@ import React, { useCallback, useEffect, useState } from 'react';
 import './Feedback.css';
 import merchantAPI from '../../api/merchantAPI';
 
+const MERCHANT_REPLY_ROLES = ['MERCHANT_ADMIN'];
+
+const getFeedbackRole = (feedback) => {
+  if (!feedback || typeof feedback !== 'object') return '';
+  const roleCandidates = [
+    feedback.role,
+    feedback.userRole,
+    feedback.user?.role,
+    feedback.customer?.role,
+    feedback.customerInfo?.role,
+  ];
+  for (const candidate of roleCandidates) {
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim().toUpperCase();
+    }
+  }
+  return '';
+};
+
+const isMerchantReplyEntry = (feedback) => MERCHANT_REPLY_ROLES.includes(getFeedbackRole(feedback));
+
 const formatDateTime = (value) => {
   if (!value) return '';
   const date = new Date(value);
@@ -14,36 +35,47 @@ const formatDateTime = (value) => {
   return `${hours}:${minutes} ${day}/${month}/${year}`;
 };
 
-const normalizeFeedback = (feedback) => {
-  if (!feedback || typeof feedback !== 'object') return null;
+const normalizeFeedback = (order) => {
+  if (!order || typeof order !== 'object' || !Array.isArray(order.feedbacks)) return null;
   
-  const customer = feedback.customer ?? feedback.user ?? feedback.customerInfo ?? {};
-  const fullName = feedback.customerName 
-    ?? feedback.customer_name 
+  // Find customer feedback and merchant reply
+  const customerFeedback = order.feedbacks.find(fb => 
+    fb?.user?.role === 'CUSTOMER'
+  );
+  const merchantReply = order.feedbacks.find(fb => 
+    fb?.user?.role === 'MERCHANT_ADMIN'
+  );
+
+  // If no customer feedback, skip this order
+  if (!customerFeedback) return null;
+
+  const customer = customerFeedback.user ?? {};
+  const fullName = order.fullName 
     ?? customer.fullName 
     ?? customer.name 
-    ?? [customer.firstName, customer.lastName].filter(Boolean).join(' ')
     ?? 'Khách hàng';
 
   // Normalize images
-  const rawImages = feedback.imgUrl ?? feedback.images ?? feedback.imageUrls ?? feedback.photos ?? [];
+  const rawImages = customerFeedback.imgUrl ?? customerFeedback.images ?? [];
   const images = Array.isArray(rawImages) ? rawImages.filter(img => img && typeof img === 'string') : [];
 
   return {
-    id: feedback.id ?? feedback.feedbackId ?? feedback._id ?? `fb-${Date.now()}`,
+    id: customerFeedback.id,
     customerName: fullName,
-    rating: Number(feedback.rating ?? feedback.stars ?? feedback.score ?? 0),
-    comment: feedback.comment ?? feedback.message ?? feedback.content ?? feedback.text ?? '',
-    reply: feedback.reply ?? feedback.merchantReply ?? feedback.response ?? '',
-    createdAt: feedback.createdAt ?? feedback.created_at ?? feedback.date ?? new Date().toISOString(),
-    orderId: feedback.orderId ?? feedback.order_id ?? feedback.orderNumber ?? null,
+    rating: Number(customerFeedback.rating ?? 0),
+    comment: customerFeedback.comment ?? '',
+    reply: merchantReply?.comment ?? '',
+    createdAt: customerFeedback.createdAt ?? new Date().toISOString(),
+    orderId: order.code ?? order.id,
     images: images,
   };
 };
 
-const normalizeFeedbacks = (feedbacks) => {
-  if (!Array.isArray(feedbacks)) return [];
-  return feedbacks.map(normalizeFeedback).filter(Boolean);
+const normalizeFeedbacks = (orders) => {
+  if (!Array.isArray(orders)) return [];
+  return orders
+    .map(normalizeFeedback)
+    .filter(Boolean);
 };
 
 const StarRating = ({ rating }) => {
@@ -159,8 +191,12 @@ const Feedback = () => {
     setLoading(true);
     setError('');
     try {
-      const list = await merchantAPI.getFeedbacks();
-      const normalized = normalizeFeedbacks(list);
+      const orders = await merchantAPI.getOrders();
+      // Only process orders that have feedbacks
+      const ordersWithFeedbacks = orders.filter(order => 
+        Array.isArray(order.feedbacks) && order.feedbacks.length > 0
+      );
+      const normalized = normalizeFeedbacks(ordersWithFeedbacks);
       setFeedbacks(normalized);
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || 'Không thể tải danh sách feedback');
@@ -365,21 +401,6 @@ const Feedback = () => {
                     <span className="feedback-reply-label">Phản hồi của bạn:</span>
                   </div>
                   <p className="feedback-reply-text">{feedback.reply}</p>
-                  <button
-                    className="feedback-edit-reply-btn"
-                    onClick={() => openReplyModal(feedback)}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                      <path
-                        d="M11.5 2.5L13.5 4.5M2 14H4L12.5 5.5L10.5 3.5L2 12V14Z"
-                        stroke="currentColor"
-                        strokeWidth="1.2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                    Chỉnh sửa
-                  </button>
                 </div>
               ) : (
                 <button
