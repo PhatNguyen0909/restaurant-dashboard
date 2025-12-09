@@ -182,17 +182,17 @@ const resolveErrorMessage = (err, defaultMsg) => {
 const normalizeItems = (items) => {
     if (!Array.isArray(items)) return [];
     return items.map(item => ({
-        name: item.name || item.productName || 'Món ăn',
+        name: item.menuItemName || item.name || item.productName || 'Món ăn',
         quantity: toNumber(item.quantity || item.qty),
-        base_price: toNumber(item.price || item.basePrice),
-        options: (item.options || []).map(normalizeOption).filter(Boolean),
+        base_price: toNumber(item.menuItemBasePrice || item.basePrice || item.price || item.subtotal / (item.quantity || 1)),
+        options: (item.optionValues || item.options || []).map(normalizeOption).filter(Boolean),
         note: item.note || ''
     }));
 };
 
 const extractDetailItems = (detail) => {
     if (!detail) return [];
-    return detail.items || detail.orderItems || [];
+    return detail.items || detail.orderItems || detail.order_items || [];
 };
 
 const parseCoordinate = (value) => {
@@ -227,7 +227,7 @@ const normalizeOrder = (order) => {
 		address: order.address || order.deliveryAddress || '',
 		note: order.note || order.notes || '',
 		total_amount: toNumber(order.totalAmount || order.total_amount),
-		items: normalizeItems(order.items || order.orderItems),
+		items: normalizeItems(order.items || order.orderItems || order.order_items),
 		payment: {
 			method: order.paymentMethod || order.payment_method || 'COD',
 			status: order.paymentStatus || order.payment_status || 'PENDING'
