@@ -2,6 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './DroneMap.css';
 import merchantAPI from '../../api/merchantAPI';
 
+const LEG_DURATION_MS = 60 * 1000;
+const MIDWAY_POPUP_MS = 10000;
+
 const toNumberOrNull = (value) => {
   if (value === null || value === undefined || value === '') return null;
   const num = Number(value);
@@ -29,10 +32,12 @@ const DroneMap = ({
   const [dronePosition, setDronePosition] = useState(0); // 0-100%
   const movementTimerRef = useRef(null);
   const lastApiUpdateRef = useRef(0);
-
+  const midwayTimerRef = useRef(null);
+  const midwayShownRef = useRef({ pickup: false, delivery: false });
 
   const [pickupArrived, setPickupArrived] = useState(false);
-
+  const [midwayVisible, setMidwayVisible] = useState(false);
+  const [midwayMessage, setMidwayMessage] = useState('');
 
   const merchantLat = toNumberOrNull(merchantLocation?.lat);
   const merchantLng = toNumberOrNull(merchantLocation?.lng);
@@ -112,6 +117,15 @@ const DroneMap = ({
     }, 100);
 
     return () => clearInterval(checkLeaflet);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (midwayTimerRef.current) {
+        clearTimeout(midwayTimerRef.current);
+        midwayTimerRef.current = null;
+      }
+    };
   }, []);
 
   // Initialize map
@@ -255,6 +269,27 @@ const DroneMap = ({
   // Step-by-step drone movement (matches admin map style)
   // Add a key that changes when phase switches to force animation restart
   const movementPhaseKey = `${orderStatus}-${deliveryKey}`;
+
+  useEffect(() => {
+    midwayShownRef.current = { pickup: false, delivery: false };
+    setMidwayVisible(false);
+    if (midwayTimerRef.current) {
+      clearTimeout(midwayTimerRef.current);
+      midwayTimerRef.current = null;
+    }
+  }, [movementPhaseKey]);
+
+  const showMidwayToast = useCallback((message) => {
+    setMidwayMessage(message);
+    setMidwayVisible(true);
+    if (midwayTimerRef.current) {
+      clearTimeout(midwayTimerRef.current);
+    }
+    midwayTimerRef.current = setTimeout(() => {
+      setMidwayVisible(false);
+      midwayTimerRef.current = null;
+    }, MIDWAY_POPUP_MS);
+  }, []);
   useEffect(() => {
     if (movementTimerRef.current) {
       clearInterval(movementTimerRef.current);
@@ -299,7 +334,7 @@ const DroneMap = ({
       return;
     }
 
-    const totalDuration = 5000; // 5 seconds for both pickup and delivery legs
+    const totalDuration = LEG_DURATION_MS; // 1 minute per leg
     const intervalMs = 100; // update every 100ms for smoothness
     const totalSteps = Math.max(1, Math.round(totalDuration / intervalMs));
     let currentStep = 0;
@@ -331,6 +366,15 @@ const DroneMap = ({
       droneMarkerRef.current.setLatLng(latLng);
       setLiveDroneCoords({ lat: currentLat, lng: currentLng });
       setDronePosition(Math.round(progress * 100));
+
+      if (!midwayShownRef.current[phaseType] && progress >= 0.5) {
+        midwayShownRef.current[phaseType] = true;
+        showMidwayToast(
+          phaseType === 'pickup'
+            ? 'Drone đã bay được nửa đường tới cửa hàng.'
+            : 'Drone đã đi được nửa quãng đường tới khách hàng.'
+        );
+      }
 
       const now = Date.now();
       if (droneId && now - lastApiUpdateRef.current > 3000) {
@@ -374,7 +418,7 @@ const DroneMap = ({
         movementTimerRef.current = null;
       }
     };
-  }, [mapReady, merchantLat, merchantLng, deliveryLat, deliveryLng, autoAnimate, isPickupPhase, isDeliveryPhase, hasDroneCoords, droneId, pushDroneLocationUpdate, orderKey, movementPhaseKey]);
+  }, [mapReady, merchantLat, merchantLng, deliveryLat, deliveryLng, autoAnimate, isPickupPhase, isDeliveryPhase, hasDroneCoords, droneId, pushDroneLocationUpdate, orderKey, movementPhaseKey, showMidwayToast]);
 
   // Update drone position based on order status
   useEffect(() => {
@@ -469,6 +513,17 @@ const DroneMap = ({
 
   return (
     <div className="drone-map-container">
+      {midwayVisible && (
+        <div className="drone-midway-toast" role="status">
+          <div className="drone-midway-card">
+            <span className="drone-midway-icon">🛰️</span>
+            <div>
+              <p className="drone-midway-title">Drone đã đi được 1/2 chặng</p>
+              <p className="drone-midway-message">{midwayMessage}</p>
+            </div>
+          </div>
+        </div>
+      )}
       {renderPickupPrompt()}
       <div className="drone-map-header">
         <div className="status-text">{getStatusText()}</div>
