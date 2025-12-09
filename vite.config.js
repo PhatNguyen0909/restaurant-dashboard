@@ -61,7 +61,7 @@ export default defineConfig(({ mode }) => {
         // Proxy tất cả request bắt đầu bằng /api sang backend để tránh CORS khi dev
         // URL được lấy từ biến môi trường VITE_API_BASE_URL
         '/api': {
-          target: env.VITE_API_BASE_TARGET || 'https://rise-minimum-seminar-overhead.trycloudflare.com/potato-api',
+          target: env.VITE_API_BASE_TARGET || 'https://integrity-release-measuring-highly.trycloudflare.com/potato-api',
           changeOrigin: true,
           secure: false,
           rewrite: (path) => path.replace(/^\/api/, ''),
